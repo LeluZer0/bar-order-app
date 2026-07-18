@@ -1451,6 +1451,42 @@ body {
     padding: 0.6rem 1rem;
   }
 
+  /* Spostiamo la barra di navigazione in basso per ergonomia */
+  .app-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    border-bottom: none;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+    height: 60px;
+  }
+
+  .nav-btn {
+    padding: 0.6rem 0.2rem;
+    font-size: 0.85rem;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-bottom: none;
+    border-top: 3px solid transparent;
+  }
+
+  .nav-btn.active {
+    border-bottom-color: transparent;
+    border-top-color: var(--primary);
+  }
+
+  .nav-icon {
+    font-size: 1.4rem;
+  }
+
+  .app-content {
+    margin-bottom: 60px; /* Lascia spazio per la barra in basso */
+    height: calc(100vh - 120px); /* 60px header + 60px nav */
+  }
+
   .screen-section {
     padding: 1rem;
   }
@@ -1466,6 +1502,14 @@ body {
 
   .table-num {
     font-size: 1.2rem;
+  }
+
+  /* Categorie a swipe orizzontale pulito */
+  .category-tabs {
+    scrollbar-width: none;
+  }
+  .category-tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .category-tab {
@@ -1490,8 +1534,59 @@ body {
   .product-price {
     font-size: 0.95rem;
   }
-  
-  .modal-content, .modal-content-small {
-    border-radius: var(--radius-md);
+
+  /* Spostiamo il pulsante fluttuante del carrello più in alto per non coprire la barra in basso */
+  .mobile-cart-toggle {
+    bottom: 5rem;
+    width: 55px;
+    height: 55px;
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
   }
+
+  /* I modali si trasformano in eleganti Bottom Sheets scorrevoli dal basso */
+  .modal {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal-content, .modal-content-small {
+    max-width: 100%;
+    width: 100%;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-bottom: none;
+    max-height: 85vh;
+    transform: translateY(100%);
+    box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .modal.active .modal-content,
+  .modal.active .modal-content-small {
+    transform: translateY(0);
+    animation: slideUpBottomsheet 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  /* Carrello in formato Bottom Sheet a schermo intero o quasi */
+  .cart-sidebar {
+    left: 0;
+    right: 0;
+    bottom: -100%;
+    top: auto;
+    width: 100% !important;
+    height: 85vh;
+    border-left: none;
+    border-top: 1px solid var(--border-color);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    transition: bottom var(--transition-normal) cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 1100;
+  }
+
+  .cart-sidebar.active {
+    bottom: 0;
+    right: 0;
+  }
+}
+
+@keyframes slideUpBottomsheet {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
