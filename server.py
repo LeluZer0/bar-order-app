@@ -1,11 +1,15 @@
 import json
 import os
 import uuid
+import urllib.request
+import urllib.error
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
 PORT = int(os.environ.get('PORT', 8080))
 DB_FILE = os.environ.get('DB_FILE_PATH', 'db.json')
+JSONBIN_API_KEY = os.environ.get('JSONBIN_API_KEY')
+JSONBIN_BIN_ID = os.environ.get('JSONBIN_BIN_ID')
 
 try:
     from seed_menu import NEW_CATEGORIES, NEW_PRODUCTS
@@ -31,6 +35,17 @@ DEFAULT_DB = {
 }
 
 def load_db():
+    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+        req = urllib.request.Request(url)
+        req.add_header('X-Master-Key', JSONBIN_API_KEY)
+        req.add_header('X-Bin-Meta', 'false')
+        try:
+            with urllib.request.urlopen(req, timeout=10) as response:
+                return json.loads(response.read().decode('utf-8'))
+        except Exception as e:
+            print(f"Errore caricamento da JSONBin: {e}. Uso fallback locale.")
+            
     if not os.path.exists(DB_FILE):
         save_db(DEFAULT_DB)
         return DEFAULT_DB
@@ -41,6 +56,20 @@ def load_db():
         return DEFAULT_DB
 
 def save_db(data):
+    if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+        req = urllib.request.Request(url, method='PUT')
+        req.add_header('X-Master-Key', JSONBIN_API_KEY)
+        req.add_header('Content-Type', 'application/json')
+        req.add_header('X-Bin-Meta', 'false')
+        
+        json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
+        try:
+            with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
+                return
+        except Exception as e:
+            print(f"Errore salvataggio su JSONBin: {e}. Salvo localmente.")
+            
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
