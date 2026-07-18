@@ -50,7 +50,13 @@ DEFAULT_DB = {
     "order_items": {}
 }
 
+CACHED_DB = None
+
 def load_db():
+    global CACHED_DB
+    if CACHED_DB is not None:
+        return CACHED_DB
+
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         req = urllib.request.Request(url)
@@ -59,20 +65,31 @@ def load_db():
         req.add_header('X-Bin-Meta', 'false')
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
-                return json.loads(response.read().decode('utf-8'))
+                data = json.loads(response.read().decode('utf-8'))
+                CACHED_DB = data
+                print("☁️ Database caricato da JSONBin.io con successo (Cache inizializzata).")
+                return CACHED_DB
         except Exception as e:
-            print(f"Errore caricamento da JSONBin: {e}. Uso fallback locale.")
+            print(f"⚠️ Errore caricamento da JSONBin: {e}. Uso fallback locale.")
             
     if not os.path.exists(DB_FILE):
         save_db(DEFAULT_DB)
+        CACHED_DB = DEFAULT_DB
         return DEFAULT_DB
     try:
         with open(DB_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
+            CACHED_DB = data
+            print("💾 Database caricato da file locale db.json.")
+            return CACHED_DB
     except Exception:
+        CACHED_DB = DEFAULT_DB
         return DEFAULT_DB
 
 def save_db(data):
+    global CACHED_DB
+    CACHED_DB = data  # Aggiorna sempre la cache in memoria prima di tutto
+
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         req = urllib.request.Request(url, method='PUT')
@@ -84,12 +101,14 @@ def save_db(data):
         json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
         try:
             with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
+                print("☁️ Modifiche persistite su JSONBin.io.")
                 return
         except Exception as e:
-            print(f"Errore salvataggio su JSONBin: {e}. Salvo localmente.")
+            print(f"⚠️ Errore salvataggio su JSONBin: {e}. Salvo localmente.")
             
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+        print("💾 Modifiche salvate localmente su db.json.")
 
 class BarRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
