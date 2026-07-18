@@ -41,6 +41,7 @@ except Exception as e:
 
 url = f"https://api.jsonbin.io/v3/b/{bin_id}"
 req = urllib.request.Request(url, method='PUT')
+req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
 req.add_header('X-Master-Key', api_key)
 req.add_header('Content-Type', 'application/json')
 req.add_header('X-Bin-Meta', 'false')

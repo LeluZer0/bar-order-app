@@ -54,6 +54,7 @@ def load_db():
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         req = urllib.request.Request(url)
+        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
         req.add_header('X-Master-Key', JSONBIN_API_KEY)
         req.add_header('X-Bin-Meta', 'false')
         try:
@@ -75,6 +76,7 @@ def save_db(data):
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         req = urllib.request.Request(url, method='PUT')
+        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
         req.add_header('X-Master-Key', JSONBIN_API_KEY)
         req.add_header('Content-Type', 'application/json')
         req.add_header('X-Bin-Meta', 'false')
