@@ -2,17 +2,11 @@ import { ApiClient } from './api.js';
 import { CartState } from './cart.js';
 
 // --- CONFIGURAZIONE E STATO APPLICAZIONE ---
-let currentScreen = 'tables'; // 'tables' | 'order' | 'admin'
+let currentScreen = 'tables'; // 'tables' | 'order'
 let activeTable = null; // Oggetto Tavolo attivo
 let menuData = null; // { categories: [...], products: [...] }
 let selectedCategory = null; // Categoria menu selezionata
 let currentOrderDetails = null; // Ordine attivo del tavolo correntemente visualizzato
-let currentAdminTab = 'tables'; // 'tables' | 'categories' | 'products'
-
-// Stati di modifica sezione Amministrazione
-let editingTableId = null;
-let editingCategoryId = null;
-let editingProductId = null;
 
 // Stato per la personalizzazione del prodotto nel Modale
 let modalProduct = null;
@@ -22,10 +16,8 @@ let modalQty = 1;
 // --- ELEMENTI DEL DOM ---
 const screenTables = document.getElementById('screen-tables');
 const screenOrder = document.getElementById('screen-order');
-const screenAdmin = document.getElementById('screen-admin');
 const navTables = document.getElementById('nav-tables');
 const navOrder = document.getElementById('nav-order');
-const navAdmin = document.getElementById('nav-admin');
 
 const tablesGrid = document.getElementById('tables-grid');
 const categoryTabs = document.getElementById('category-tabs');
@@ -65,28 +57,6 @@ const modalQtyPlus = document.getElementById('modal-qty-plus');
 const modalPricePreview = document.getElementById('modal-price-preview');
 const confirmAddToCartBtn = document.getElementById('confirm-add-to-cart');
 
-// Elementi DOM Sezione Gestione (Admin)
-const adminTabTables = document.getElementById('admin-tab-tables');
-const adminTabCategories = document.getElementById('admin-tab-categories');
-const adminTabProducts = document.getElementById('admin-tab-products');
-const adminViewTables = document.getElementById('admin-view-tables');
-const adminViewCategories = document.getElementById('admin-view-categories');
-const adminViewProducts = document.getElementById('admin-view-products');
-
-const adminTablesList = document.getElementById('admin-tables-list');
-const adminCategoriesList = document.getElementById('admin-categories-list');
-const adminProductsList = document.getElementById('admin-products-list');
-
-const formAddTable = document.getElementById('form-add-table');
-const formAddCategory = document.getElementById('form-add-category');
-const formAddProduct = document.getElementById('form-add-product');
-const newProdCatSelect = document.getElementById('new-prod-cat');
-
-// Bottoni Annulla Modifica
-const btnCancelTableEdit = document.getElementById('btn-cancel-table-edit');
-const btnCancelCatEdit = document.getElementById('btn-cancel-cat-edit');
-const btnCancelProdEdit = document.getElementById('btn-cancel-prod-edit');
-
 // --- SISTEMA DI TOAST NOTIFICATION ---
 function showToast(message, type = 'info') {
   const container = document.getElementById('toast-container');
@@ -114,10 +84,8 @@ function showScreen(screenId) {
   
   screenTables.classList.remove('active');
   screenOrder.classList.remove('active');
-  screenAdmin.classList.remove('active');
   navTables.classList.remove('active');
   navOrder.classList.remove('active');
-  navAdmin.classList.remove('active');
   
   if (screenId === 'tables') {
     screenTables.classList.add('active');
@@ -135,82 +103,8 @@ function showScreen(screenId) {
     navOrder.classList.add('active');
     navOrder.disabled = false;
     cartTableLabel.textContent = activeTable.name;
-  } else if (screenId === 'admin') {
-    screenAdmin.classList.add('active');
-    navAdmin.classList.add('active');
-    cartSidebar.classList.remove('active');
-    resetAllAdminForms();
-    refreshAdminData();
   }
 }
-
-function showAdminTab(tabName) {
-  currentAdminTab = tabName;
-  
-  adminTabTables.classList.toggle('active', tabName === 'tables');
-  adminTabCategories.classList.toggle('active', tabName === 'categories');
-  adminTabProducts.classList.toggle('active', tabName === 'products');
-  
-  adminViewTables.classList.toggle('active', tabName === 'tables');
-  adminViewCategories.classList.toggle('active', tabName === 'categories');
-  adminViewProducts.classList.toggle('active', tabName === 'products');
-  
-  resetAllAdminForms();
-  refreshAdminData();
-}
-
-// --- LOGICHE RESET FORM AMMINISTRAZIONE ---
-
-function resetTableForm() {
-  const nameInput = document.getElementById('new-table-name');
-  nameInput.value = '';
-  editingTableId = null;
-  
-  document.querySelector('#admin-view-tables .admin-form-box h4').textContent = 'Aggiungi Nuovo Tavolo';
-  document.getElementById('btn-submit-table').textContent = 'Aggiungi Tavolo';
-  btnCancelTableEdit.style.display = 'none';
-}
-
-function resetCategoryForm() {
-  const idInput = document.getElementById('new-cat-id');
-  const nameInput = document.getElementById('new-cat-name');
-  const iconInput = document.getElementById('new-cat-icon');
-  
-  idInput.value = '';
-  idInput.readOnly = false;
-  nameInput.value = '';
-  iconInput.value = '';
-  editingCategoryId = null;
-  
-  document.querySelector('#admin-view-categories .admin-form-box h4').textContent = 'Aggiungi Categoria';
-  document.getElementById('btn-submit-category').textContent = 'Aggiungi Categoria';
-  btnCancelCatEdit.style.display = 'none';
-}
-
-function resetProductForm() {
-  const nameInput = document.getElementById('new-prod-name');
-  const priceInput = document.getElementById('new-prod-price');
-  const variantsInput = document.getElementById('new-prod-variants');
-  const addonsInput = document.getElementById('new-prod-addons');
-  
-  nameInput.value = '';
-  priceInput.value = '';
-  variantsInput.value = '';
-  addonsInput.value = '';
-  editingProductId = null;
-  
-  document.querySelector('#admin-view-products .admin-form-box h4').textContent = 'Aggiungi Prodotto';
-  document.getElementById('btn-submit-product').textContent = 'Aggiungi Prodotto';
-  btnCancelProdEdit.style.display = 'none';
-}
-
-function resetAllAdminForms() {
-  resetTableForm();
-  resetCategoryForm();
-  resetProductForm();
-}
-
-// --- LOGICA DI CARICAMENTO DATI ---
 
 async function loadTables() {
   try {
@@ -226,7 +120,6 @@ async function refreshMenu() {
   try {
     menuData = await ApiClient.getMenu();
     renderCategoryTabs();
-    populateAdminCategorySelect();
     
     if (selectedCategory) {
       selectCategory(selectedCategory);
@@ -347,344 +240,7 @@ function renderProducts() {
   });
 }
 
-// --- LOGICA DI RENDERING SEZIONE ADMIN ---
 
-async function refreshAdminData() {
-  if (currentAdminTab === 'tables') {
-    try {
-      const tables = await ApiClient.getTables();
-      renderAdminTables(tables);
-    } catch (err) {
-      showToast('Errore caricamento tavoli admin', 'error');
-    }
-  } else if (currentAdminTab === 'categories') {
-    try {
-      renderAdminCategories(menuData.categories);
-    } catch (err) {
-      showToast('Errore caricamento categorie admin', 'error');
-    }
-  } else if (currentAdminTab === 'products') {
-    try {
-      renderAdminProducts(menuData.products);
-    } catch (err) {
-      showToast('Errore caricamento prodotti admin', 'error');
-    }
-  }
-}
-
-function populateAdminCategorySelect() {
-  newProdCatSelect.innerHTML = '';
-  menuData.categories.forEach(cat => {
-    const opt = document.createElement('option');
-    opt.value = cat.id;
-    opt.textContent = `${cat.icon} ${cat.name}`;
-    newProdCatSelect.appendChild(opt);
-  });
-}
-
-// Renderizzazione Lista Tavoli Gestione (con Modifica ed Eliminazione)
-function renderAdminTables(tables) {
-  adminTablesList.innerHTML = '';
-  
-  if (tables.length === 0) {
-    adminTablesList.innerHTML = '<li class="text-muted" style="padding: 1rem;">Nessun tavolo configurato</li>';
-    return;
-  }
-
-  tables.forEach(table => {
-    const li = document.createElement('li');
-    li.className = 'admin-data-item';
-    
-    li.innerHTML = `
-      <div>
-        <div class="admin-item-title">${table.name}</div>
-        <div class="admin-item-subtitle">Stato: ${table.status.toUpperCase()} | ID: ${table.id}</div>
-      </div>
-      <div class="admin-item-actions">
-        <button class="btn-edit-touch btn-edit-table">⚙️</button>
-        <button class="btn-delete-touch btn-del-table">&times;</button>
-      </div>
-    `;
-    
-    // Click su Modifica (⚙️)
-    li.querySelector('.btn-edit-table').addEventListener('click', () => {
-      editingTableId = table.id;
-      document.getElementById('new-table-name').value = table.name;
-      
-      document.querySelector('#admin-view-tables .admin-form-box h4').textContent = `Modifica: ${table.name}`;
-      document.getElementById('btn-submit-table').textContent = 'Salva Modifiche';
-      btnCancelTableEdit.style.display = 'block';
-      
-      document.getElementById('new-table-name').focus();
-    });
-
-    // Click su Elimina (X)
-    li.querySelector('.btn-del-table').addEventListener('click', async () => {
-      if (table.status !== 'libero') {
-        showToast('Impossibile eliminare un tavolo occupato o in chiusura!', 'error');
-        return;
-      }
-      if (confirm(`Sei sicuro di voler eliminare il "${table.name}"?`)) {
-        try {
-          await ApiClient.deleteTable(table.id);
-          showToast('Tavolo eliminato con successo', 'success');
-          if (editingTableId === table.id) resetTableForm();
-          refreshAdminData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
-      }
-    });
-    
-    adminTablesList.appendChild(li);
-  });
-}
-
-// Renderizzazione Lista Categorie Gestione (con Modifica ed Eliminazione)
-function renderAdminCategories(categories) {
-  adminCategoriesList.innerHTML = '';
-  
-  if (categories.length === 0) {
-    adminCategoriesList.innerHTML = '<li class="text-muted" style="padding: 1rem;">Nessuna categoria configurata</li>';
-    return;
-  }
-
-  categories.forEach(cat => {
-    const li = document.createElement('li');
-    li.className = 'admin-data-item';
-    
-    const prodCount = menuData.products.filter(p => p.category_id === cat.id).length;
-    
-    li.innerHTML = `
-      <div>
-        <div class="admin-item-title">${cat.icon} ${cat.name}</div>
-        <div class="admin-item-subtitle">ID Categoria: ${cat.id} | Prodotti associati: ${prodCount}</div>
-      </div>
-      <div class="admin-item-actions">
-        <button class="btn-edit-touch btn-edit-cat">⚙️</button>
-        <button class="btn-delete-touch btn-del-cat">&times;</button>
-      </div>
-    `;
-    
-    // Click su Modifica (⚙️)
-    li.querySelector('.btn-edit-cat').addEventListener('click', () => {
-      editingCategoryId = cat.id;
-      
-      const idInput = document.getElementById('new-cat-id');
-      idInput.value = cat.id;
-      idInput.readOnly = true; // Impedisci modifica ID per integrità database
-      
-      document.getElementById('new-cat-name').value = cat.name;
-      document.getElementById('new-cat-icon').value = cat.icon;
-      
-      document.querySelector('#admin-view-categories .admin-form-box h4').textContent = `Modifica: ${cat.name}`;
-      document.getElementById('btn-submit-category').textContent = 'Salva Modifiche';
-      btnCancelCatEdit.style.display = 'block';
-      
-      document.getElementById('new-cat-name').focus();
-    });
-
-    // Click su Elimina (X)
-    li.querySelector('.btn-del-cat').addEventListener('click', async () => {
-      const msg = prodCount > 0 
-        ? `⚠️ ATTENZIONE: La categoria contiene ${prodCount} prodotti. La cancellazione eliminerà A CASCATA sia la categoria che tutti questi prodotti. Vuoi procedere?`
-        : `Sei sicuro di voler eliminare la categoria "${cat.name}"?`;
-      
-      if (confirm(msg)) {
-        try {
-          await ApiClient.deleteCategory(cat.id);
-          showToast('Categoria (e prodotti) rimossi correttamente', 'success');
-          if (editingCategoryId === cat.id) resetCategoryForm();
-          await refreshMenu();
-          refreshAdminData();
-        } catch (err) {
-          showToast(err.message, 'error');
-        }
-      }
-    });
-    
-    adminCategoriesList.appendChild(li);
-  });
-}
-
-// Renderizzazione Lista Prodotti Gestione (con Modifica ed Eliminazione)
-function renderAdminProducts(products) {
-  adminProductsList.innerHTML = '';
-  
-  if (products.length === 0) {
-    adminProductsList.innerHTML = '<li class="text-muted" style="padding: 1rem;">Nessun prodotto configurato</li>';
-    return;
-  }
-
-  const categories = menuData.categories || [];
-  
-  // Renderizza i prodotti per ciascuna categoria
-  categories.forEach(cat => {
-    const catProducts = products.filter(p => p.category_id === cat.id);
-    
-    // Mostriamo l'intestazione della categoria
-    const headerLi = document.createElement('li');
-    headerLi.className = 'admin-category-group-header';
-    headerLi.innerHTML = `
-      <span class="category-group-icon">${cat.icon}</span>
-      <span class="category-group-name">${cat.name}</span>
-      <span class="category-group-count">(${catProducts.length})</span>
-    `;
-    adminProductsList.appendChild(headerLi);
-    
-    if (catProducts.length === 0) {
-      const emptyLi = document.createElement('li');
-      emptyLi.className = 'admin-data-item admin-data-item-empty';
-      emptyLi.style.opacity = '0.5';
-      emptyLi.style.justifyContent = 'center';
-      emptyLi.innerHTML = '<span class="text-muted" style="font-size: 0.8rem;">Nessun prodotto in questa categoria</span>';
-      adminProductsList.appendChild(emptyLi);
-    } else {
-      catProducts.forEach(prod => {
-        const li = document.createElement('li');
-        li.className = 'admin-data-item';
-        
-        const variantsCount = prod.customizations.variants ? prod.customizations.variants.length : 0;
-        const addonsCount = prod.customizations.add_ons ? prod.customizations.add_ons.length : 0;
-        
-        li.innerHTML = `
-          <div>
-            <div class="admin-item-title">${prod.name}</div>
-            <div class="admin-item-subtitle">
-              Prezzo: ${(prod.price_cents / 100).toFixed(2)} € <br>
-              Varianti: ${variantsCount} | Aggiunte: ${addonsCount} | ID: ${prod.id}
-            </div>
-          </div>
-          <div class="admin-item-actions">
-            <button class="btn-edit-touch btn-edit-prod">⚙️</button>
-            <button class="btn-delete-touch btn-del-prod">&times;</button>
-          </div>
-        `;
-        
-        // Click su Modifica (⚙️)
-        li.querySelector('.btn-edit-prod').addEventListener('click', () => {
-          editingProductId = prod.id;
-          
-          document.getElementById('new-prod-name').value = prod.name;
-          document.getElementById('new-prod-cat').value = prod.category_id;
-          document.getElementById('new-prod-price').value = (prod.price_cents / 100).toFixed(2);
-          
-          // Carica varianti
-          document.getElementById('new-prod-variants').value = prod.customizations.variants 
-            ? prod.customizations.variants.join(', ') 
-            : '';
-            
-          // Carica aggiunte extra formatandole in Nome:Prezzo
-          const addons = prod.customizations.add_ons || [];
-          document.getElementById('new-prod-addons').value = addons
-            .map(a => `${a.name}:${a.price_cents}`)
-            .join(', ');
-          
-          document.querySelector('#admin-view-products .admin-form-box h4').textContent = `Modifica: ${prod.name}`;
-          document.getElementById('btn-submit-product').textContent = 'Salva Modifiche';
-          btnCancelProdEdit.style.display = 'block';
-          
-          document.getElementById('new-prod-name').focus();
-        });
-
-        // Click su Elimina (X)
-        li.querySelector('.btn-del-prod').addEventListener('click', async () => {
-          if (confirm(`Sei sicuro di voler eliminare il prodotto "${prod.name}" dal menu?`)) {
-            try {
-              await ApiClient.deleteProduct(prod.id);
-              showToast('Prodotto rimosso dal menu', 'success');
-              if (editingProductId === prod.id) resetProductForm();
-              await refreshMenu();
-              refreshAdminData();
-            } catch (err) {
-              showToast(err.message, 'error');
-            }
-          }
-        });
-        
-        adminProductsList.appendChild(li);
-      });
-    }
-  });
-
-  // Prodotti senza categoria o con categoria non trovata
-  const uncategorizedProducts = products.filter(p => !categories.some(c => c.id === p.category_id));
-  if (uncategorizedProducts.length > 0) {
-    const headerLi = document.createElement('li');
-    headerLi.className = 'admin-category-group-header';
-    headerLi.innerHTML = `
-      <span class="category-group-icon">📦</span>
-      <span class="category-group-name">Nessuna Categoria / Altro</span>
-      <span class="category-group-count">(${uncategorizedProducts.length})</span>
-    `;
-    adminProductsList.appendChild(headerLi);
-    
-    uncategorizedProducts.forEach(prod => {
-      const li = document.createElement('li');
-      li.className = 'admin-data-item';
-      
-      const variantsCount = prod.customizations.variants ? prod.customizations.variants.length : 0;
-      const addonsCount = prod.customizations.add_ons ? prod.customizations.add_ons.length : 0;
-      
-      li.innerHTML = `
-        <div>
-          <div class="admin-item-title">${prod.name}</div>
-          <div class="admin-item-subtitle">
-            Prezzo: ${(prod.price_cents / 100).toFixed(2)} € <br>
-            Varianti: ${variantsCount} | Aggiunte: ${addonsCount} | ID: ${prod.id}
-          </div>
-        </div>
-        <div class="admin-item-actions">
-          <button class="btn-edit-touch btn-edit-prod">⚙️</button>
-          <button class="btn-delete-touch btn-del-prod">&times;</button>
-        </div>
-      `;
-      
-      // Click su Modifica (⚙️)
-      li.querySelector('.btn-edit-prod').addEventListener('click', () => {
-        editingProductId = prod.id;
-        
-        document.getElementById('new-prod-name').value = prod.name;
-        document.getElementById('new-prod-cat').value = prod.category_id;
-        document.getElementById('new-prod-price').value = (prod.price_cents / 100).toFixed(2);
-        
-        // Carica varianti
-        document.getElementById('new-prod-variants').value = prod.customizations.variants 
-          ? prod.customizations.variants.join(', ') 
-          : '';
-          
-        // Carica aggiunte extra formatandole in Nome:Prezzo
-        const addons = prod.customizations.add_ons || [];
-        document.getElementById('new-prod-addons').value = addons
-          .map(a => `${a.name}:${a.price_cents}`)
-          .join(', ');
-        
-        document.querySelector('#admin-view-products .admin-form-box h4').textContent = `Modifica: ${prod.name}`;
-        document.getElementById('btn-submit-product').textContent = 'Salva Modifiche';
-        btnCancelProdEdit.style.display = 'block';
-        
-        document.getElementById('new-prod-name').focus();
-      });
-
-      // Click su Elimina (X)
-      li.querySelector('.btn-del-prod').addEventListener('click', async () => {
-        if (confirm(`Sei sicuro di voler eliminare il prodotto "${prod.name}" dal menu?`)) {
-          try {
-            await ApiClient.deleteProduct(prod.id);
-            showToast('Prodotto rimosso dal menu', 'success');
-            if (editingProductId === prod.id) resetProductForm();
-            await refreshMenu();
-            refreshAdminData();
-          } catch (err) {
-            showToast(err.message, 'error');
-          }
-        }
-      });
-      
-      adminProductsList.appendChild(li);
-    });
-  }
-}
 
 // --- FUNZIONALITÀ INTERACTION / EVENT HANDLERS ---
 
@@ -949,12 +505,6 @@ function setupEventListeners() {
   // Nav Tabs principali
   navTables.addEventListener('click', () => showScreen('tables'));
   navOrder.addEventListener('click', () => showScreen('order'));
-  navAdmin.addEventListener('click', () => showScreen('admin'));
-  
-  // Admin Sotto-Tab
-  adminTabTables.addEventListener('click', () => showAdminTab('tables'));
-  adminTabCategories.addEventListener('click', () => showAdminTab('categories'));
-  adminTabProducts.addEventListener('click', () => showAdminTab('products'));
   
   // Close Modals buttons
   document.querySelectorAll('.modal-close').forEach(closeBtn => {
@@ -1083,150 +633,7 @@ function setupEventListeners() {
 
   closeCartBtn.addEventListener('click', () => {
     cartSidebar.classList.remove('active');
-  });
 
-  // --- Pulsanti Annulla Modifica ---
-  btnCancelTableEdit.addEventListener('click', resetTableForm);
-  btnCancelCatEdit.addEventListener('click', resetCategoryForm);
-  btnCancelProdEdit.addEventListener('click', resetProductForm);
-
-  // --- SUBMISSIONS DEI FORM DI AMMINISTRAZIONE ---
-
-  // 1. Form Aggiungi/Modifica Tavolo
-  formAddTable.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const input = document.getElementById('new-table-name');
-    const name = input.value.trim();
-    if (!name) return;
-
-    try {
-      if (editingTableId !== null) {
-        // Modalità Modifica (PUT)
-        await ApiClient.updateTable(editingTableId, name);
-        showToast(`Tavolo aggiornato in "${name}"!`, 'success');
-        resetTableForm();
-      } else {
-        // Modalità Aggiunta (POST)
-        await ApiClient.addTable(name);
-        showToast(`Tavolo "${name}" creato!`, 'success');
-        input.value = '';
-      }
-      refreshAdminData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
-  // 2. Form Aggiungi/Modifica Categoria
-  formAddCategory.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const idInput = document.getElementById('new-cat-id');
-    const nameInput = document.getElementById('new-cat-name');
-    const iconInput = document.getElementById('new-cat-icon');
-
-    const id = idInput.value.trim().toLowerCase();
-    const name = nameInput.value.trim();
-    const icon = iconInput.value.trim();
-
-    if (!name || !icon) return;
-
-    try {
-      if (editingCategoryId !== null) {
-        // Modalità Modifica (PUT)
-        await ApiClient.updateCategory(editingCategoryId, name, icon);
-        showToast(`Categoria aggiornata in "${name}"!`, 'success');
-        resetCategoryForm();
-      } else {
-        // Modalità Aggiunta (POST)
-        if (!id) return;
-        await ApiClient.addCategory(id, name, icon);
-        showToast(`Categoria "${name}" creata!`, 'success');
-        idInput.value = '';
-        nameInput.value = '';
-        iconInput.value = '';
-      }
-      
-      await refreshMenu();
-      refreshAdminData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
-
-  // 3. Form Aggiungi/Modifica Prodotto
-  formAddProduct.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nameInput = document.getElementById('new-prod-name');
-    const catSelect = document.getElementById('new-prod-cat');
-    const priceInput = document.getElementById('new-prod-price');
-    const variantsInput = document.getElementById('new-prod-variants');
-    const addonsInput = document.getElementById('new-prod-addons');
-
-    const name = nameInput.value.trim();
-    const category_id = catSelect.value;
-    const priceVal = parseFloat(priceInput.value);
-    
-    if (!name || !category_id || isNaN(priceVal)) return;
-
-    const price_cents = Math.round(priceVal * 100);
-
-    const variantsText = variantsInput.value.trim();
-    const variants = variantsText 
-      ? variantsText.split(',').map(v => v.trim()).filter(v => v !== '') 
-      : [];
-
-    const addonsText = addonsInput.value.trim();
-    const add_ons = [];
-    if (addonsText) {
-      const parts = addonsText.split(',');
-      for (const part of parts) {
-        const subparts = part.split(':');
-        if (subparts.length >= 1) {
-          const addOnName = subparts[0].trim();
-          let addOnPrice = 0;
-          if (subparts.length >= 2) {
-            addOnPrice = parseInt(subparts[1].trim()) || 0;
-          }
-          if (addOnName) {
-            add_ons.push({ name: addOnName, price_cents: addOnPrice });
-          }
-        }
-      }
-    }
-
-    try {
-      const productPayload = {
-        name,
-        category_id,
-        price_cents,
-        customizations: {
-          variants,
-          add_ons
-        }
-      };
-
-      if (editingProductId !== null) {
-        // Modalità Modifica (PUT)
-        await ApiClient.updateProduct(editingProductId, productPayload);
-        showToast(`Prodotto "${name}" aggiornato!`, 'success');
-        resetProductForm();
-      } else {
-        // Modalità Aggiunta (POST)
-        await ApiClient.addProduct(productPayload);
-        showToast(`Prodotto "${name}" aggiunto!`, 'success');
-        
-        nameInput.value = '';
-        priceInput.value = '';
-        variantsInput.value = '';
-        addonsInput.value = '';
-      }
-      
-      await refreshMenu();
-      refreshAdminData();
-    } catch (err) {
-      showToast(err.message, 'error');
-    }
-  });
 }
 
 // --- AVVIO DELL'APPLICAZIONE ---

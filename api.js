@@ -63,6 +63,15 @@ export const ApiClient = {
   },
 
   /**
+   * Recupera la lista di tutte le comande.
+   */
+  async getOrders() {
+    const res = await fetch(`${API_BASE}/orders`);
+    if (!res.ok) throw new Error('Errore nel caricamento delle comande');
+    return res.json();
+  },
+
+  /**
    * Aggiorna lo stato di una comanda.
    */
   async updateOrderStatus(orderId, status) {

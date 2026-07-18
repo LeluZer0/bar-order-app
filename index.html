@@ -41,10 +41,6 @@
       <span class="nav-icon">🛍️</span>
       Prendi Ordine
     </button>
-    <button id="nav-admin" class="nav-btn">
-      <span class="nav-icon">⚙️</span>
-      Gestione
-    </button>
   </nav>
 
   <!-- Main Content Container -->
@@ -118,119 +114,7 @@
       </div>
     </section>
 
-    <!-- SCHERMATA 3: SEZIONE GESTIONE (ADMIN) -->
-    <section id="screen-admin" class="screen-section">
-      <div class="admin-layout">
-        <!-- Sotto-navigazione interna -->
-        <div class="admin-subnav">
-          <button id="admin-tab-tables" class="admin-subtab-btn active">Tavoli</button>
-          <button id="admin-tab-categories" class="admin-subtab-btn">Categorie</button>
-          <button id="admin-tab-products" class="admin-subtab-btn">Prodotti</button>
-        </div>
 
-        <!-- Sotto-vista A: GESTIONE TAVOLI -->
-        <div id="admin-view-tables" class="admin-view active">
-          <div class="admin-split">
-            <!-- Lista -->
-            <div class="admin-list-container">
-              <h4>Elenco Tavoli</h4>
-              <ul id="admin-tables-list" class="admin-data-list">
-                <!-- Generato Dinamicamente -->
-              </ul>
-            </div>
-            <!-- Form -->
-            <div class="admin-form-box">
-              <h4>Aggiungi Nuovo Tavolo</h4>
-              <form id="form-add-table" onsubmit="return false;">
-                <div class="form-group">
-                  <label for="new-table-name">Nome Tavolo:</label>
-                  <input type="text" id="new-table-name" placeholder="Es. Tavolo 9" required autocomplete="off">
-                </div>
-                <button type="submit" id="btn-submit-table" class="btn btn-primary btn-block">Aggiungi Tavolo</button>
-                <button type="button" id="btn-cancel-table-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sotto-vista B: GESTIONE CATEGORIE -->
-        <div id="admin-view-categories" class="admin-view">
-          <div class="admin-split">
-            <!-- Lista -->
-            <div class="admin-list-container">
-              <h4>Elenco Categorie</h4>
-              <ul id="admin-categories-list" class="admin-data-list">
-                <!-- Generato Dinamicamente -->
-              </ul>
-            </div>
-            <!-- Form -->
-            <div class="admin-form-box">
-              <h4>Aggiungi Categoria</h4>
-              <form id="form-add-category" onsubmit="return false;">
-                <div class="form-group">
-                  <label for="new-cat-id">ID Categoria (Univoco, es. 'dolci'):</label>
-                  <input type="text" id="new-cat-id" placeholder="Es. dolci" required autocomplete="off">
-                </div>
-                <div class="form-group">
-                  <label for="new-cat-name">Nome Categoria:</label>
-                  <input type="text" id="new-cat-name" placeholder="Es. Dolci" required autocomplete="off">
-                </div>
-                <div class="form-group">
-                  <label for="new-cat-icon">Icona (Emoji):</label>
-                  <input type="text" id="new-cat-icon" placeholder="Es. 🍰" required autocomplete="off">
-                </div>
-                <button type="submit" id="btn-submit-category" class="btn btn-primary btn-block">Aggiungi Categoria</button>
-                <button type="button" id="btn-cancel-cat-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <!-- Sotto-vista C: GESTIONE PRODOTTI -->
-        <div id="admin-view-products" class="admin-view">
-          <div class="admin-split">
-            <!-- Lista -->
-            <div class="admin-list-container">
-              <h4>Elenco Prodotti</h4>
-              <ul id="admin-products-list" class="admin-data-list">
-                <!-- Generato Dinamicamente -->
-              </ul>
-            </div>
-            <!-- Form -->
-            <div class="admin-form-box">
-              <h4>Aggiungi Prodotto</h4>
-              <form id="form-add-product" onsubmit="return false;">
-                <div class="form-group">
-                  <label for="new-prod-name">Nome Prodotto:</label>
-                  <input type="text" id="new-prod-name" placeholder="Es. Muffin" required autocomplete="off">
-                </div>
-                <div class="form-group">
-                  <label for="new-prod-cat">Categoria:</label>
-                  <select id="new-prod-cat" required>
-                    <!-- Inserito Dinamicamente -->
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label for="new-prod-price">Prezzo (€):</label>
-                  <input type="number" id="new-prod-price" placeholder="Es. 2.50" step="0.01" required autocomplete="off">
-                </div>
-                <div class="form-group">
-                  <label for="new-prod-variants">Varianti (separate da virgola):</label>
-                  <input type="text" id="new-prod-variants" placeholder="Es. Cioccolato, Vuota, Crema" autocomplete="off">
-                </div>
-                <div class="form-group">
-                  <label for="new-prod-addons">Aggiunte extra (Formato: Nome:Prezzo in Cent., sep. da virgola):</label>
-                  <input type="text" id="new-prod-addons" placeholder="Es. Panna:50, Nutella:60" autocomplete="off">
-                </div>
-                <button type="submit" id="btn-submit-product" class="btn btn-primary btn-block">Aggiungi Prodotto</button>
-                <button type="button" id="btn-cancel-prod-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </section>
 
   </main>
 

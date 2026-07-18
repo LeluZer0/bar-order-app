@@ -121,6 +121,18 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
             }
             self.send_json_response(200, menu_data)
             
+        elif self.path == '/api/orders':
+            orders = db.get('orders', {})
+            order_items = db.get('order_items', {})
+            result = []
+            for order_id, order in orders.items():
+                items = [item for item in order_items.values() if item.get('order_id') == order_id]
+                order_copy = order.copy()
+                order_copy['items'] = items
+                result.append(order_copy)
+            result.sort(key=lambda x: x.get('created_at', ''))
+            self.send_json_response(200, result)
+
         elif self.path.startswith('/api/orders/'):
             order_id = self.path.split('/')[-1]
             orders = db.get('orders', {})
