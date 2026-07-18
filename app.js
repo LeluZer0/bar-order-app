@@ -10,7 +10,7 @@ let currentOrderDetails = null; // Ordine attivo del tavolo correntemente visual
 
 // Stato per la personalizzazione del prodotto nel Modale
 let modalProduct = null;
-let modalCustoms = { variant: '', add_ons: [] };
+let modalCustoms = { variants: [], add_ons: [] };
 let modalQty = 1;
 
 // --- ELEMENTI DEL DOM ---
@@ -339,9 +339,9 @@ function openCustomizationModal(product) {
   customModalTitle.textContent = `Personalizza ${product.name}`;
   itemCustomNotes.value = '';
   
-  modalCustoms.variant = product.customizations.variants && product.customizations.variants.length > 0 
-    ? product.customizations.variants[0] 
-    : '';
+  modalCustoms.variants = product.customizations.variants && product.customizations.variants.length > 0 
+    ? [product.customizations.variants[0]] 
+    : [];
   modalCustoms.add_ons = [];
   
   // Render Varianti
@@ -349,18 +349,27 @@ function openCustomizationModal(product) {
   const variants = product.customizations.variants || [];
   if (variants.length > 0) {
     document.getElementById('variants-section').style.display = 'block';
-    variants.forEach((v, index) => {
-      const btn = document.createElement('button');
-      btn.className = `pill-option ${index === 0 ? 'selected' : ''}`;
-      btn.textContent = v;
-      btn.addEventListener('click', () => {
-        modalCustoms.variant = v;
-        variantsOptions.querySelectorAll('.pill-option').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        updateModalPricePreview();
+      variants.forEach((v, index) => {
+        const btn = document.createElement('button');
+        btn.className = `pill-option ${index === 0 ? 'selected' : ''}`;
+        btn.textContent = v;
+        btn.addEventListener('click', () => {
+          const isSelected = modalCustoms.variants.includes(v);
+          if (isSelected) {
+            if (modalCustoms.variants.length > 1) {
+              modalCustoms.variants = modalCustoms.variants.filter(val => val !== v);
+              btn.classList.remove('selected');
+            } else {
+              showToast("Seleziona almeno una variante", "info");
+            }
+          } else {
+            modalCustoms.variants.push(v);
+            btn.classList.add('selected');
+          }
+          updateModalPricePreview();
+        });
+        variantsOptions.appendChild(btn);
       });
-      variantsOptions.appendChild(btn);
-    });
   } else {
     document.getElementById('variants-section').style.display = 'none';
   }
@@ -528,7 +537,8 @@ function setupEventListeners() {
   confirmAddToCartBtn.addEventListener('click', () => {
     if (!modalProduct) return;
     
-    CartState.addItem(modalProduct, modalCustoms, itemCustomNotes.value.trim(), modalQty);
+    const variantStr = modalCustoms.variants ? modalCustoms.variants.join(', ') : '';
+    CartState.addItem(modalProduct, { variant: variantStr, add_ons: modalCustoms.add_ons }, itemCustomNotes.value.trim(), modalQty);
     customizationModal.classList.remove('active');
     showToast(`${modalProduct.name} aggiunto al carrello`, 'success');
   });
