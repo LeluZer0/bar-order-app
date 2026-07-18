@@ -6,6 +6,22 @@ import urllib.error
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
+# Prova a caricare da .env locale se esiste
+if os.path.exists(".env"):
+    with open(".env", "r") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                parts = line.split("=", 1)
+                if len(parts) == 2:
+                    key = parts[0].strip()
+                    val = parts[1].strip()
+                    if val.startswith('"') and val.endswith('"'):
+                        val = val[1:-1]
+                    elif val.startswith("'") and val.endswith("'"):
+                        val = val[1:-1]
+                    os.environ[key] = val
+
 PORT = int(os.environ.get('PORT', 8080))
 DB_FILE = os.environ.get('DB_FILE_PATH', 'db.json')
 JSONBIN_API_KEY = os.environ.get('JSONBIN_API_KEY')
