@@ -622,7 +622,7 @@ function setupEventListeners() {
 
   closeCartBtn.addEventListener('click', () => {
     cartSidebar.classList.remove('active');
-
+  });
 }
 
 // --- AVVIO DELL'APPLICAZIONE ---
