@@ -206,19 +206,7 @@ async function refreshMenu() {
   }
 }
 
-// --- POLLING AUTOMATICO OGNI 5 SECONDI ---
-function startPolling() {
-  // Primi caricamenti
-  loadTables();
-  loadKDS();
-  
-  pollingInterval = setInterval(() => {
-    if (currentScreen === 'tables') {
-      loadTables();
-    }
-    loadKDS(); // Lo facciamo sempre per tenere aggiornato il badge
-  }, 5000);
-}
+
 
 // --- RENDERING MONITOR TAVOLI (CASSA) ---
 function renderTables(tables) {
@@ -839,7 +827,8 @@ function setupEventListeners() {
 async function initDashboard() {
   await refreshMenu();
   setupEventListeners();
-  startPolling();
+  loadTables();
+  loadKDS();
 }
 
 document.addEventListener('DOMContentLoaded', initDashboard);
