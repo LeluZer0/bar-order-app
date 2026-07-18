@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Logica Carrello (Step 2)</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      padding: 2rem;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #38bdf8;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 0.5rem;
+    }
+    .test-case {
+      background-color: #1e293b;
+      padding: 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      border-left: 5px solid #64748b;
+    }
+    .test-case.pass {
+      border-left-color: #10b981;
+    }
+    .test-case.fail {
+      border-left-color: #ef4444;
+    }
+    .status {
+      font-weight: bold;
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      margin-right: 0.5rem;
+    }
+    .status.pass {
+      background-color: #064e3b;
+      color: #34d399;
+    }
+    .status.fail {
+      background-color: #7f1d1d;
+      color: #f87171;
+    }
+    .log-container {
+      background-color: #020617;
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      white-space: pre-wrap;
+    }
+    .summary {
+      font-size: 1.2rem;
+      margin-bottom: 1.5rem;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1>Test di Validazione Logica Carrello (Step 2)</h1>
+  <div class="summary" id="summary">Esecuzione dei test in corso...</div>
+  
+  <div id="results"></div>
+
+  <script type="module">
+    import { CartState } from './cart.js';
+
+    const resultsDiv = document.getElementById('results');
+    const summaryDiv = document.getElementById('summary');
+    let passedTests = 0;
+    let totalTests = 0;
+
+    // Prodotti di test mockati
+    const mockEspresso = {
+      id: 'espresso',
+      name: 'Espresso',
+      price_cents: 120,
+      customizations: {
+        variants: ["Normale", "Ristretto", "Lungo"],
+        add_ons: [
+          { name: "Schiumato", price_cents: 0 },
+          { name: "Corretto", price_cents: 50 }
+        ]
+      }
+    };
+
+    const mockCroissant = {
+      id: 'croissant',
+      name: 'Croissant',
+      price_cents: 150,
+      customizations: {
+        variants: ["Vuota", "Marmellata"],
+        add_ons: []
+      }
+    };
+
+    function runTest(name, testFn) {
+      totalTests++;
+      const testCaseDiv = document.createElement('div');
+      testCaseDiv.className = 'test-case';
+      
+      const title = document.createElement('h3');
+      title.textContent = name;
+      testCaseDiv.appendChild(title);
+
+      const logContainer = document.createElement('div');
+      logContainer.className = 'log-container';
+      
+      const logs = [];
+      const logger = {
+        log: (...args) => {
+          logs.push(args.map(arg => typeof arg === 'object' ? JSON.stringify(arg, null, 2) : arg).join(' '));
+        }
+      };
+
+      try {
+        CartState.clear();
+        testFn(logger);
+        
+        testCaseDiv.classList.add('pass');
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'status pass';
+        statusSpan.textContent = 'PASS';
+        title.prepend(statusSpan);
+        passedTests++;
+      } catch (err) {
+        testCaseDiv.classList.add('fail');
+        const statusSpan = document.createElement('span');
+        statusSpan.className = 'status fail';
+        statusSpan.textContent = 'FAIL';
+        title.prepend(statusSpan);
+        logger.log('ERROR:', err.message, '\nStack:', err.stack);
+      }
+
+      logContainer.textContent = logs.join('\n');
+      testCaseDiv.appendChild(logContainer);
+      resultsDiv.appendChild(testCaseDiv);
+    }
+
+    // --- TEST SUITE ---
+
+    runTest('1. Aggiunta prodotto semplice al carrello', (console) => {
+      CartState.addItem(mockEspresso);
+      const items = CartState.getItems();
+      
+      console.log('Articoli nel carrello:', items);
+      
+      if (items.length !== 1) throw new Error('Dovrebbe esserci 1 elemento nel carrello');
+      if (items[0].product_id !== 'espresso') throw new Error('L\'ID del prodotto deve essere "espresso"');
+      if (items[0].quantity !== 1) throw new Error('La quantità deve essere 1');
+      if (items[0].unit_price_cents !== 120) throw new Error('Il prezzo unitario deve essere 120');
+      if (CartState.getTotalCents() !== 120) throw new Error('Il totale deve essere 120');
+      
+      console.log('Superato! Prodotto aggiunto correttamente.');
+    });
+
+    runTest('2. Incremento quantità per articoli identici', (console) => {
+      CartState.addItem(mockEspresso);
+      CartState.addItem(mockEspresso); // Aggiunta dello stesso espresso
+      
+      const items = CartState.getItems();
+      console.log('Articoli nel carrello:', items);
+      
+      if (items.length !== 1) throw new Error('Dovrebbe esserci ancora 1 solo record nel carrello');
+      if (items[0].quantity !== 2) throw new Error('La quantità dovrebbe essere incrementata a 2');
+      if (CartState.getTotalCents() !== 240) throw new Error('Il totale dovrebbe essere 240 (120 * 2)');
+      
+      console.log('Superato! La quantità è stata raggruppata correttamente.');
+    });
+
+    runTest('3. Gestione di varianti diverse dello stesso prodotto (Devono essere raggruppati separatamente)', (console) => {
+      // 1 Espresso Normale
+      CartState.addItem(mockEspresso, { variant: 'Normale' });
+      // 1 Espresso Ristretto
+      CartState.addItem(mockEspresso, { variant: 'Ristretto' });
+      
+      const items = CartState.getItems();
+      console.log('Articoli nel carrello:', items);
+      
+      if (items.length !== 2) throw new Error('Dovrebbero esserci 2 record distinti nel carrello');
+      if (CartState.getTotalCents() !== 240) throw new Error('Il totale dovrebbe essere 240');
+      
+      console.log('Superato! Varianti diverse dello stesso prodotto sono registrate come righe separate.');
+    });
+
+    runTest('4. Calcolo prezzo con aggiunte/personalizzazioni extra', (console) => {
+      // Espresso corretto (+50 centesimi)
+      CartState.addItem(mockEspresso, { variant: 'Normale', add_ons: ['Corretto'] });
+      
+      const items = CartState.getItems();
+      console.log('Articoli nel carrello:', items);
+      
+      if (items.length !== 1) throw new Error('Dovrebbe esserci 1 elemento');
+      if (items[0].unit_price_cents !== 170) throw new Error('Il prezzo dell\'espresso corretto deve essere 170 (120 + 50)');
+      if (CartState.getTotalCents() !== 170) throw new Error('Il totale deve essere 170');
+      
+      console.log('Superato! Il sovrapprezzo delle aggiunte viene calcolato correttamente.');
+    });
+
+    runTest('5. Aggiornamento manuale della quantità e rimozione', (console) => {
+      CartState.addItem(mockEspresso);
+      const items = CartState.getItems();
+      const itemId = items[0].id;
+      
+      // Imposta quantità a 5
+      CartState.updateQuantity(itemId, 5);
+      if (items[0].quantity !== 5) throw new Error('La quantità deve essere 5');
+      if (CartState.getTotalCents() !== 600) throw new Error('Il totale deve essere 600 (120 * 5)');
+      console.log('Quantità aggiornata a 5:', items[0]);
+
+      // Riduci quantità a 0 (dovrebbe rimuovere l'articolo)
+      CartState.updateQuantity(itemId, 0);
+      if (CartState.getItems().length !== 0) throw new Error('Il carrello dovrebbe essere vuoto dopo aver impostato la quantità a 0');
+      
+      console.log('Superato! Rimozione e aggiornamento quantità funzionano.');
+    });
+
+    runTest('6. Notifica eventi di aggiornamento stato', (console) => {
+      let eventFired = false;
+      let eventDetails = null;
+
+      window.addEventListener('cart-updated', (e) => {
+        eventFired = true;
+        eventDetails = e.detail;
+      });
+
+      CartState.addItem(mockCroissant);
+
+      if (!eventFired) throw new Error('L\'evento "cart-updated" non è stato emesso');
+      console.log('Dettagli evento ricevuti:', eventDetails);
+      if (eventDetails.totalCents !== 150) throw new Error('Il totale dell\'evento dovrebbe essere 150');
+      
+      console.log('Superato! Gli eventi di aggiornamento stato funzionano correttamente.');
+    });
+
+    // Aggiornamento riepilogo
+    summaryDiv.innerHTML = `Esecuzione completata: <strong>${passedTests}/${totalTests}</strong> test passati.`;
+    summaryDiv.style.color = passedTests === totalTests ? '#34d399' : '#f87171';
+  </script>
+</body>
+</html>

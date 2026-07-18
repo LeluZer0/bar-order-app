@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SmartBar - Presa Comande Touch-First</title>
+  <meta name="description" content="Sistema professionale e touch-first per la presa comande su tablet e smartphone per camerieri.">
+  
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- CSS Principale -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Header Applicazione -->
+  <header class="app-header">
+    <div class="header-logo">
+      <span class="logo-icon">🍸</span>
+      <h1>SmartBar</h1>
+    </div>
+    <div class="header-status">
+      <span class="status-indicator online"></span>
+      <span id="connection-text">Terminale Attivo</span>
+    </div>
+  </header>
+
+  <!-- Navigazione Principale (Tabs) -->
+  <nav class="app-nav">
+    <button id="nav-tables" class="nav-btn active">
+      <span class="nav-icon">📋</span>
+      Mappa Tavoli
+    </button>
+    <button id="nav-order" class="nav-btn" disabled>
+      <span class="nav-icon">🛍️</span>
+      Prendi Ordine
+    </button>
+    <button id="nav-admin" class="nav-btn">
+      <span class="nav-icon">⚙️</span>
+      Gestione
+    </button>
+  </nav>
+
+  <!-- Main Content Container -->
+  <main class="app-content">
+
+    <!-- SCHERMATA 1: MAPPA TAVOLI -->
+    <section id="screen-tables" class="screen-section active">
+      <div class="screen-header">
+        <h2>Mappa Tavoli</h2>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot libero"></span>Libero</span>
+          <span class="legend-item"><span class="legend-dot occupato"></span>Occupato</span>
+          <span class="legend-item"><span class="legend-dot chiusura"></span>In Chiusura</span>
+        </div>
+      </div>
+      
+      <!-- Griglia Tavoli -->
+      <div id="tables-grid" class="tables-grid">
+        <div class="skeleton-loader" style="height: 120px; grid-column: span 4;">Caricamento tavoli...</div>
+      </div>
+    </section>
+
+    <!-- SCHERMATA 2: INSERIMENTO COMANDA -->
+    <section id="screen-order" class="screen-section">
+      <div class="order-layout">
+        <!-- Sezione Sinistra: Menu e Prodotti -->
+        <div class="menu-column">
+          <!-- Categorie: Navigazione Rapida Touch -->
+          <div id="category-tabs" class="category-tabs">
+            <!-- Generato Dinamicamente -->
+          </div>
+
+          <!-- Griglia Prodotti -->
+          <div id="products-grid" class="products-grid">
+            <!-- Generato Dinamicamente -->
+          </div>
+        </div>
+
+        <!-- Sezione Destra: Carrello Comanda -->
+        <aside id="cart-sidebar" class="cart-sidebar">
+          <div class="cart-header">
+            <h3>Comanda <span id="cart-table-label">Tavolo</span></h3>
+            <button id="close-cart-btn" class="close-cart-btn">&times;</button>
+          </div>
+          
+          <div id="cart-items-list" class="cart-items-list">
+            <div class="cart-empty-state">
+              <span class="empty-icon">🛒</span>
+              <p>Nessun prodotto selezionato</p>
+            </div>
+          </div>
+
+          <!-- Note Ordine -->
+          <div class="cart-notes">
+            <label for="order-general-notes">Note Generali Comanda:</label>
+            <textarea id="order-general-notes" placeholder="Es: Portare prima le bevande, salse al tavolo..."></textarea>
+          </div>
+
+          <!-- Totale e Pulsante Invio -->
+          <div class="cart-summary">
+            <div class="total-row">
+              <span>Totale Comanda:</span>
+              <span id="cart-total-value">0.00 €</span>
+            </div>
+            <div class="cart-actions">
+              <button id="cancel-order-btn" class="btn btn-secondary">Annulla</button>
+              <button id="submit-order-btn" class="btn btn-primary btn-block">Invia Ordine</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- SCHERMATA 3: SEZIONE GESTIONE (ADMIN) -->
+    <section id="screen-admin" class="screen-section">
+      <div class="admin-layout">
+        <!-- Sotto-navigazione interna -->
+        <div class="admin-subnav">
+          <button id="admin-tab-tables" class="admin-subtab-btn active">Tavoli</button>
+          <button id="admin-tab-categories" class="admin-subtab-btn">Categorie</button>
+          <button id="admin-tab-products" class="admin-subtab-btn">Prodotti</button>
+        </div>
+
+        <!-- Sotto-vista A: GESTIONE TAVOLI -->
+        <div id="admin-view-tables" class="admin-view active">
+          <div class="admin-split">
+            <!-- Lista -->
+            <div class="admin-list-container">
+              <h4>Elenco Tavoli</h4>
+              <ul id="admin-tables-list" class="admin-data-list">
+                <!-- Generato Dinamicamente -->
+              </ul>
+            </div>
+            <!-- Form -->
+            <div class="admin-form-box">
+              <h4>Aggiungi Nuovo Tavolo</h4>
+              <form id="form-add-table" onsubmit="return false;">
+                <div class="form-group">
+                  <label for="new-table-name">Nome Tavolo:</label>
+                  <input type="text" id="new-table-name" placeholder="Es. Tavolo 9" required autocomplete="off">
+                </div>
+                <button type="submit" id="btn-submit-table" class="btn btn-primary btn-block">Aggiungi Tavolo</button>
+                <button type="button" id="btn-cancel-table-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sotto-vista B: GESTIONE CATEGORIE -->
+        <div id="admin-view-categories" class="admin-view">
+          <div class="admin-split">
+            <!-- Lista -->
+            <div class="admin-list-container">
+              <h4>Elenco Categorie</h4>
+              <ul id="admin-categories-list" class="admin-data-list">
+                <!-- Generato Dinamicamente -->
+              </ul>
+            </div>
+            <!-- Form -->
+            <div class="admin-form-box">
+              <h4>Aggiungi Categoria</h4>
+              <form id="form-add-category" onsubmit="return false;">
+                <div class="form-group">
+                  <label for="new-cat-id">ID Categoria (Univoco, es. 'dolci'):</label>
+                  <input type="text" id="new-cat-id" placeholder="Es. dolci" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="new-cat-name">Nome Categoria:</label>
+                  <input type="text" id="new-cat-name" placeholder="Es. Dolci" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="new-cat-icon">Icona (Emoji):</label>
+                  <input type="text" id="new-cat-icon" placeholder="Es. 🍰" required autocomplete="off">
+                </div>
+                <button type="submit" id="btn-submit-category" class="btn btn-primary btn-block">Aggiungi Categoria</button>
+                <button type="button" id="btn-cancel-cat-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sotto-vista C: GESTIONE PRODOTTI -->
+        <div id="admin-view-products" class="admin-view">
+          <div class="admin-split">
+            <!-- Lista -->
+            <div class="admin-list-container">
+              <h4>Elenco Prodotti</h4>
+              <ul id="admin-products-list" class="admin-data-list">
+                <!-- Generato Dinamicamente -->
+              </ul>
+            </div>
+            <!-- Form -->
+            <div class="admin-form-box">
+              <h4>Aggiungi Prodotto</h4>
+              <form id="form-add-product" onsubmit="return false;">
+                <div class="form-group">
+                  <label for="new-prod-name">Nome Prodotto:</label>
+                  <input type="text" id="new-prod-name" placeholder="Es. Muffin" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="new-prod-cat">Categoria:</label>
+                  <select id="new-prod-cat" required>
+                    <!-- Inserito Dinamicamente -->
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="new-prod-price">Prezzo (€):</label>
+                  <input type="number" id="new-prod-price" placeholder="Es. 2.50" step="0.01" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="new-prod-variants">Varianti (separate da virgola):</label>
+                  <input type="text" id="new-prod-variants" placeholder="Es. Cioccolato, Vuota, Crema" autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label for="new-prod-addons">Aggiunte extra (Formato: Nome:Prezzo in Cent., sep. da virgola):</label>
+                  <input type="text" id="new-prod-addons" placeholder="Es. Panna:50, Nutella:60" autocomplete="off">
+                </div>
+                <button type="submit" id="btn-submit-product" class="btn btn-primary btn-block">Aggiungi Prodotto</button>
+                <button type="button" id="btn-cancel-prod-edit" class="btn btn-secondary btn-block" style="display: none; margin-top: 0.5rem;">Annulla Modifica</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALE DETTAGLI TAVOLO OCCUPATO (CHECKOUT) -->
+  <div id="table-details-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="details-modal-title">Tavolo X - Dettaglio Comanda</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="table-active-order-details">
+          <!-- Caricato dinamicamente -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <div class="quick-status-change">
+          <span>Stato Tavolo:</span>
+          <div class="status-btn-group">
+            <button id="btn-set-occupato" class="btn-status occupato">Occupato</button>
+            <button id="btn-set-chiusura" class="btn-status chiusura">In Chiusura</button>
+          </div>
+        </div>
+        <div class="action-btn-group">
+          <button id="btn-add-items" class="btn btn-secondary">Aggiungi Prodotti</button>
+          <button id="btn-complete-checkout" class="btn btn-success">Chiudi e Salda</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODALE PERSONALIZZAZIONE PRODOTTO (TOUCH-FIRST) -->
+  <div id="customization-modal" class="modal">
+    <div class="modal-content-small">
+      <div class="modal-header">
+        <h3 id="custom-modal-title">Personalizza Prodotto</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="customization-form" class="customization-form">
+          <!-- Sezione Varianti -->
+          <div id="variants-section" class="custom-group">
+            <h4>Variante</h4>
+            <div id="variants-options" class="pills-grid">
+              <!-- Bottoni grandi autogenerati -->
+            </div>
+          </div>
+
+          <!-- Sezione Aggiunte -->
+          <div id="addons-section" class="custom-group">
+            <h4>Aggiunte / Modifiche</h4>
+            <div id="addons-options" class="pills-grid">
+              <!-- Bottoni grandi autogenerati -->
+            </div>
+          </div>
+
+          <!-- Note Articolo -->
+          <div class="custom-group">
+            <h4>Note Articolo</h4>
+            <textarea id="item-custom-notes" placeholder="Es. macchiato caldo, senza ghiaccio, molto cotto..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer flex-column">
+        <div class="quantity-selector-container">
+          <span>Quantità:</span>
+          <div class="qty-selector">
+            <button id="modal-qty-minus" class="qty-btn">-</button>
+            <span id="modal-qty-value">1</span>
+            <button id="modal-qty-plus" class="qty-btn">+</button>
+          </div>
+        </div>
+        <div class="action-price-container">
+          <div class="item-unit-price">
+            Prezzo: <span id="modal-price-preview">0.00 €</span>
+          </div>
+          <button id="confirm-add-to-cart" class="btn btn-primary">Aggiungi al Carrello</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Floating Cart Toggle Button -->
+  <button id="mobile-cart-toggle" class="mobile-cart-toggle">
+    <span class="cart-icon">🛒</span>
+    <span id="mobile-cart-count" class="cart-count">0</span>
+  </button>
+
+  <!-- JS Applicazione -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
