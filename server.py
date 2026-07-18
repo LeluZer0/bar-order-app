@@ -67,10 +67,10 @@ def load_db():
             with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 CACHED_DB = data
-                print("☁️ Database caricato da JSONBin.io con successo (Cache inizializzata).")
+                print("[JSONBin] Database caricato da JSONBin.io con successo (Cache inizializzata).")
                 return CACHED_DB
         except Exception as e:
-            print(f"⚠️ Errore caricamento da JSONBin: {e}. Uso fallback locale.")
+            print(f"[JSONBin] Errore caricamento da JSONBin: {e}. Uso fallback locale.")
             
     if not os.path.exists(DB_FILE):
         save_db(DEFAULT_DB)
@@ -80,7 +80,7 @@ def load_db():
         with open(DB_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
             CACHED_DB = data
-            print("💾 Database caricato da file locale db.json.")
+            print("[Local] Database caricato da file locale db.json.")
             return CACHED_DB
     except Exception:
         CACHED_DB = DEFAULT_DB
@@ -101,14 +101,14 @@ def save_db(data):
         json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
         try:
             with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
-                print("☁️ Modifiche persistite su JSONBin.io.")
+                print("[JSONBin] Modifiche persistite su JSONBin.io.")
                 return
         except Exception as e:
-            print(f"⚠️ Errore salvataggio su JSONBin: {e}. Salvo localmente.")
+            print(f"[JSONBin] Errore salvataggio su JSONBin: {e}. Salvo localmente.")
             
     with open(DB_FILE, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-        print("💾 Modifiche salvate localmente su db.json.")
+        print("[Local] Modifiche salvate localmente su db.json.")
 
 class BarRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
