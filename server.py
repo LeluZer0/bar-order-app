@@ -112,7 +112,18 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
         db = load_db()
         
         if self.path == '/api/tables':
-            self.send_json_response(200, db['tables'])
+            tables = db.get('tables', [])
+            orders = db.get('orders', {})
+            result = []
+            for table in tables:
+                table_copy = table.copy()
+                order_id = table.get('current_order_id')
+                if order_id and order_id in orders:
+                    table_copy['current_order_amount_cents'] = orders[order_id].get('total_amount_cents', 0)
+                else:
+                    table_copy['current_order_amount_cents'] = 0
+                result.append(table_copy)
+            self.send_json_response(200, result)
             
         elif self.path == '/api/menu':
             menu_data = {

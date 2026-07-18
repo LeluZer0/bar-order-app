@@ -158,26 +158,15 @@ function renderTables(tables) {
     if (table.status === 'occupato') statusText = 'Occupato';
     if (table.status === 'in_chiusura') statusText = 'In Chiusura';
     
+    const amount = table.current_order_amount_cents 
+      ? `${(table.current_order_amount_cents / 100).toFixed(2)} €` 
+      : '0.00 €';
+
     card.innerHTML = `
       <div class="table-num">${table.name}</div>
       <span class="table-status-badge">${statusText}</span>
-      <div class="table-amount" id="table-amount-${table.id}">-- €</div>
+      <div class="table-amount" id="table-amount-${table.id}" style="${table.current_order_amount_cents ? '' : 'opacity: 0.3'}">${amount}</div>
     `;
-    
-    if (table.current_order_id) {
-      ApiClient.getOrder(table.current_order_id)
-        .then(order => {
-          const amountDiv = document.getElementById(`table-amount-${table.id}`);
-          if (amountDiv) {
-            amountDiv.textContent = `${(order.total_amount_cents / 100).toFixed(2)} €`;
-          }
-        })
-        .catch(err => console.error(err));
-    } else {
-      const amountDiv = card.querySelector('.table-amount');
-      amountDiv.style.opacity = '0.3';
-      amountDiv.textContent = '0.00 €';
-    }
     
     card.addEventListener('click', () => handleTableClick(table));
     tablesGrid.appendChild(card);
