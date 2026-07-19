@@ -610,7 +610,18 @@ function setupEventListeners() {
   btnCompleteCheckout.addEventListener('click', async () => {
     if (!activeTable || !currentOrderDetails) return;
     
-    if (confirm(`Confermi il saldo di ${(currentOrderDetails.total_amount_cents / 100).toFixed(2)} € e la liberazione del tavolo?`)) {
+    const totalAmount = currentOrderDetails.total_amount_cents / 100;
+    const cashStr = prompt(`Totale conto: ${totalAmount.toFixed(2)} €\nQuanto contante ti è stato consegnato dal cliente?`);
+    if (cashStr === null) return; 
+
+    const cashReceived = parseFloat(cashStr.replace(',', '.'));
+    if (isNaN(cashReceived) || cashReceived < totalAmount) {
+        alert("Attenzione: l'importo inserito non è valido o è inferiore al totale.");
+        return;
+    }
+    
+    const change = cashReceived - totalAmount;
+    if (confirm(`Contante ricevuto: ${cashReceived.toFixed(2)} €\nDa dare di resto: ${change.toFixed(2)} €\n\nConfermi la chiusura definitiva del conto?`)) {
       btnCompleteCheckout.disabled = true;
       try {
         await ApiClient.checkoutOrder(currentOrderDetails.id);

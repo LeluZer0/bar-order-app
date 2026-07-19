@@ -336,7 +336,18 @@ async function loadCheckoutPanel(table) {
     });
     
     document.getElementById('btn-desktop-checkout').addEventListener('click', async () => {
-      if (confirm(`Confermi il pagamento di ${(order.total_amount_cents / 100).toFixed(2)} € per il tavolo ${table.name}?`)) {
+      const totalAmount = order.total_amount_cents / 100;
+      const cashStr = prompt(`Totale conto tavolo ${table.name}: ${totalAmount.toFixed(2)} €\nQuanto contante ha dato il cliente?`);
+      if (cashStr === null) return;
+      
+      const cashReceived = parseFloat(cashStr.replace(',', '.'));
+      if (isNaN(cashReceived) || cashReceived < totalAmount) {
+          alert("Attenzione: importo non valido o insufficiente!");
+          return;
+      }
+      
+      const change = cashReceived - totalAmount;
+      if (confirm(`Contante: ${cashReceived.toFixed(2)} €\nResto da restituire: ${change.toFixed(2)} €\n\nConfermi la chiusura?`)) {
         try {
           await ApiClient.checkoutOrder(order.id);
           showToast('Tavolo saldato e liberato con successo!', 'success');
