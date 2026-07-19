@@ -1,13 +1,14 @@
 import { ApiClient } from './api.js';
 
 // --- CONFIGURAZIONE E STATO APPLICAZIONE ---
-let currentScreen = 'tables'; // 'tables' | 'kitchen' | 'admin'
+let currentScreen = 'tables'; // 'tables' | 'kitchen' | 'admin' | 'orders'
 let activeTable = null; // Oggetto Tavolo correntemente selezionato per checkout
 let currentAdminTab = 'tables'; // 'tables' | 'categories' | 'products'
 let menuData = null; // { categories: [...], products: [...] }
 let activeOrders = []; // Comande attive
 let currentOrderDetails = null; // Dettagli dell'ordine caricato nel pannello checkout
 let pollingInterval = null;
+let tablesList = []; // Lista globale dei tavoli per mappatura nomi
 
 // Stati di modifica sezione Amministrazione
 let editingTableId = null;
@@ -18,10 +19,12 @@ let editingProductId = null;
 const screenTables = document.getElementById('screen-tables');
 const screenKitchen = document.getElementById('screen-kitchen');
 const screenAdmin = document.getElementById('screen-admin');
+const screenOrders = document.getElementById('screen-orders');
 
 const btnNavTables = document.getElementById('btn-nav-tables');
 const btnNavKitchen = document.getElementById('btn-nav-kitchen');
 const btnNavAdmin = document.getElementById('btn-nav-admin');
+const btnNavOrders = document.getElementById('btn-nav-orders');
 
 const screenTitle = document.getElementById('screen-title');
 const btnRefresh = document.getElementById('btn-refresh');
@@ -80,10 +83,12 @@ function showScreen(screenId) {
   screenTables.classList.remove('active');
   screenKitchen.classList.remove('active');
   screenAdmin.classList.remove('active');
+  screenOrders.classList.remove('active');
   
   btnNavTables.classList.remove('active');
   btnNavKitchen.classList.remove('active');
   btnNavAdmin.classList.remove('active');
+  btnNavOrders.classList.remove('active');
   
   if (screenId === 'tables') {
     screenTables.classList.add('active');
@@ -101,6 +106,11 @@ function showScreen(screenId) {
     screenTitle.textContent = 'Amministrazione';
     resetAllAdminForms();
     refreshAdminData();
+  } else if (screenId === 'orders') {
+    screenOrders.classList.add('active');
+    btnNavOrders.classList.add('active');
+    screenTitle.textContent = 'Riepilogo Ordini Chiusi';
+    loadOrdersSummary();
   }
 }
 
@@ -161,6 +171,7 @@ function resetAllAdminForms() {
 async function loadTables() {
   try {
     const tables = await ApiClient.getTables();
+    tablesList = tables;
     renderTables(tables);
     // Se c'è un tavolo attivo selezionato per checkout, rinfreschiamo il pannello cassa
     if (activeTable) {
@@ -195,6 +206,128 @@ async function loadKDS() {
   } catch (error) {
     console.error('Errore nel caricamento delle comande:', error);
   }
+}
+
+// --- RIEPILOGO ORDINI LOGICA ---
+function formatDateTimeLocal(date) {
+  const pad = (num) => String(num).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const mm = pad(date.getMonth() + 1);
+  const dd = pad(date.getDate());
+  const hh = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+function setFilterRange(from, to) {
+  document.getElementById('filter-date-from').value = formatDateTimeLocal(from);
+  document.getElementById('filter-date-to').value = formatDateTimeLocal(to);
+}
+
+function initOrdersSummaryFilters() {
+  const fromInput = document.getElementById('filter-date-from');
+  const toInput = document.getElementById('filter-date-to');
+  
+  if (!fromInput.value && !toInput.value) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    fromInput.value = formatDateTimeLocal(todayStart);
+    toInput.value = formatDateTimeLocal(todayEnd);
+  }
+}
+
+async function loadOrdersSummary() {
+  initOrdersSummaryFilters();
+  
+  const fromInput = document.getElementById('filter-date-from').value;
+  const toInput = document.getElementById('filter-date-to').value;
+  
+  const fromDate = fromInput ? new Date(fromInput) : null;
+  const toDate = toInput ? new Date(toInput) : null;
+  
+  try {
+    const allOrders = await ApiClient.getOrders();
+    const closedOrders = allOrders.filter(o => o.status === 'pagato');
+    
+    const filteredOrders = closedOrders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      if (fromDate && orderDate < fromDate) return false;
+      if (toDate && orderDate > toDate) return false;
+      return true;
+    });
+    
+    // Ordina dal più recente
+    filteredOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    
+    renderOrdersSummary(filteredOrders);
+  } catch (err) {
+    console.error('Errore nel caricamento del riepilogo ordini:', err);
+    showToast('Impossibile caricare il riepilogo ordini', 'error');
+  }
+}
+
+function renderOrdersSummary(orders) {
+  const tableBody = document.getElementById('orders-summary-table-body');
+  tableBody.innerHTML = '';
+  
+  // Calcolo statistiche
+  const totalCents = orders.reduce((sum, o) => sum + o.total_amount_cents, 0);
+  const count = orders.length;
+  const averageCents = count > 0 ? Math.round(totalCents / count) : 0;
+  
+  // Aggiorna card statistiche
+  document.getElementById('stat-total-revenue').textContent = `${(totalCents / 100).toFixed(2)} €`;
+  document.getElementById('stat-orders-count').textContent = count;
+  document.getElementById('stat-average-ticket').textContent = `${(averageCents / 100).toFixed(2)} €`;
+  
+  if (orders.length === 0) {
+    tableBody.innerHTML = `
+      <tr>
+        <td colspan="5" class="text-muted" style="text-align: center; padding: 2rem;">
+          Nessuna transazione trovata per il periodo selezionato.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+  
+  orders.forEach(order => {
+    const d = new Date(order.created_at);
+    const dateStr = d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                    ' ' + 
+                    d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                    
+    const tableName = tablesList.find(t => t.id === order.table_id)?.name || `Tavolo ${order.table_id}`;
+    
+    const itemsHtml = order.items.map(item => {
+      let customsText = '';
+      const customs = item.customizations || {};
+      const parts = [];
+      if (customs.variant) parts.push(customs.variant);
+      if (customs.add_ons && customs.add_ons.length > 0) parts.push(customs.add_ons.join(', '));
+      if (parts.length > 0) customsText = ` (${parts.join(' - ')})`;
+      
+      return `
+        <span class="order-item-inline">
+          <span class="order-item-inline-qty">${item.quantity}x</span> ${item.name}${customsText}
+        </span>
+      `;
+    }).join('');
+    
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="order-id-badge" title="${order.id}">${order.id.substring(4, 12)}...</span></td>
+      <td><span class="order-table-badge">${tableName}</span></td>
+      <td>${dateStr}</td>
+      <td><div class="order-items-list">${itemsHtml}</div></td>
+      <td class="order-amount-cell text-right">${(order.total_amount_cents / 100).toFixed(2)} €</td>
+    `;
+    
+    tableBody.appendChild(tr);
+  });
 }
 
 async function refreshMenu() {
@@ -712,6 +845,9 @@ function setupEventListeners() {
     showToast('Aggiornamento in corso...', 'info');
     loadTables();
     loadKDS();
+    if (currentScreen === 'orders') {
+      loadOrdersSummary();
+    }
   });
   
   // Admin Sotto-Tab
@@ -839,6 +975,45 @@ function setupEventListeners() {
     } catch (err) {
       showToast(err.message, 'error');
     }
+  });
+
+  // Riepilogo Ordini Nav & Filtri
+  btnNavOrders.addEventListener('click', () => showScreen('orders'));
+  
+  document.getElementById('btn-filter-apply').addEventListener('click', () => {
+    showToast('Aggiornamento riepilogo...', 'info');
+    loadOrdersSummary();
+  });
+  
+  document.getElementById('btn-filter-today').addEventListener('click', () => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    setFilterRange(todayStart, todayEnd);
+    showToast('Filtro impostato su Oggi', 'success');
+    loadOrdersSummary();
+  });
+
+  document.getElementById('btn-filter-yesterday').addEventListener('click', () => {
+    const yesterdayStart = new Date();
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    yesterdayStart.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date();
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+    yesterdayEnd.setHours(23, 59, 59, 999);
+    
+    setFilterRange(yesterdayStart, yesterdayEnd);
+    showToast('Filtro impostato su Ieri', 'success');
+    loadOrdersSummary();
+  });
+
+  document.getElementById('btn-filter-all').addEventListener('click', () => {
+    document.getElementById('filter-date-from').value = '';
+    document.getElementById('filter-date-to').value = '';
+    showToast('Filtro temporale rimosso', 'success');
+    loadOrdersSummary();
   });
 }
 

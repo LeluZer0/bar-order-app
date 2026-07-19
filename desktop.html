@@ -40,6 +40,10 @@
           Monitor Cucina
           <span id="kitchen-badge" class="badge" style="display: none;">0</span>
         </button>
+        <button id="btn-nav-orders" class="nav-item">
+          <span class="nav-icon">📊</span>
+          Riepilogo Ordini
+        </button>
         <button id="btn-nav-admin" class="nav-item">
           <span class="nav-icon">⚙️</span>
           Amministrazione
@@ -224,6 +228,84 @@
             </div>
 
           </div>
+        </div>
+      </section>
+
+      <!-- SECTION 4: RIEPILOGO ORDINI (CASSA) -->
+      <section id="screen-orders" class="screen-section">
+        <div class="orders-summary-container">
+          
+          <!-- Filtri e Azioni -->
+          <div class="filters-bar">
+            <div class="filter-inputs">
+              <div class="filter-group">
+                <label for="filter-date-from">Da:</label>
+                <input type="datetime-local" id="filter-date-from">
+              </div>
+              <div class="filter-group">
+                <label for="filter-date-to">A:</label>
+                <input type="datetime-local" id="filter-date-to">
+              </div>
+              <button id="btn-filter-apply" class="btn btn-primary flex-center">
+                <span>🔍</span> Applica Filtro
+              </button>
+            </div>
+            <div class="filter-shortcuts">
+              <span class="shortcut-label">Scorciatoie:</span>
+              <button id="btn-filter-today" class="btn btn-secondary btn-shortcut">Oggi</button>
+              <button id="btn-filter-yesterday" class="btn btn-secondary btn-shortcut">Ieri</button>
+              <button id="btn-filter-all" class="btn btn-secondary btn-shortcut">Tutto</button>
+            </div>
+          </div>
+
+          <!-- Card Statistiche -->
+          <div class="stats-row">
+            <div class="stat-card revenue">
+              <div class="stat-icon-wrapper">💰</div>
+              <div class="stat-info">
+                <h4>Incasso Totale</h4>
+                <div id="stat-total-revenue" class="stat-value">0.00 €</div>
+              </div>
+            </div>
+            <div class="stat-card count">
+              <div class="stat-icon-wrapper">📦</div>
+              <div class="stat-info">
+                <h4>Ordini Chiusi</h4>
+                <div id="stat-orders-count" class="stat-value">0</div>
+              </div>
+            </div>
+            <div class="stat-card average">
+              <div class="stat-icon-wrapper">📈</div>
+              <div class="stat-info">
+                <h4>Scontrino Medio</h4>
+                <div id="stat-average-ticket" class="stat-value">0.00 €</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabella Ordini -->
+          <div class="orders-table-card">
+            <div class="section-title-row">
+              <h3>Elenco Transazioni Chiuse</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="orders-table">
+                <thead>
+                  <tr>
+                    <th>ID Ordine</th>
+                    <th>Tavolo</th>
+                    <th>Data & Ora</th>
+                    <th>Articoli Ordinati</th>
+                    <th class="text-right">Importo</th>
+                  </tr>
+                </thead>
+                <tbody id="orders-summary-table-body">
+                  <!-- Caricato dinamicamente -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
         </div>
       </section>
 
