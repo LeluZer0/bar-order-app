@@ -337,17 +337,25 @@ async function loadCheckoutPanel(table) {
     
     document.getElementById('btn-desktop-checkout').addEventListener('click', async () => {
       const totalAmount = order.total_amount_cents / 100;
-      const cashStr = prompt(`Totale conto tavolo ${table.name}: ${totalAmount.toFixed(2)} €\nQuanto contante ha dato il cliente?`);
+      const cashStr = prompt(`Totale conto tavolo ${table.name}: ${totalAmount.toFixed(2)} €\nQuanto contante ha dato il cliente?\n(Lascia vuoto se importo esatto)`);
       if (cashStr === null) return;
       
-      const cashReceived = parseFloat(cashStr.replace(',', '.'));
-      if (isNaN(cashReceived) || cashReceived < totalAmount) {
-          alert("Attenzione: importo non valido o insufficiente!");
-          return;
+      let cashReceived = totalAmount;
+      if (cashStr.trim() !== "") {
+          cashReceived = parseFloat(cashStr.replace(',', '.'));
+          if (isNaN(cashReceived) || cashReceived < totalAmount) {
+              alert("Attenzione: importo non valido o insufficiente!");
+              return;
+          }
       }
       
       const change = cashReceived - totalAmount;
-      if (confirm(`Contante: ${cashReceived.toFixed(2)} €\nResto da restituire: ${change.toFixed(2)} €\n\nConfermi la chiusura?`)) {
+      let confirmMsg = `Confermi la chiusura per il tavolo ${table.name}?`;
+      if (cashStr.trim() !== "") {
+          confirmMsg = `Contante: ${cashReceived.toFixed(2)} €\nResto da restituire: ${change.toFixed(2)} €\n\nConfermi la chiusura?`;
+      }
+
+      if (confirm(confirmMsg)) {
         try {
           await ApiClient.checkoutOrder(order.id);
           showToast('Tavolo saldato e liberato con successo!', 'success');

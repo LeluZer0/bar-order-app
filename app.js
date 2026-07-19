@@ -611,17 +611,25 @@ function setupEventListeners() {
     if (!activeTable || !currentOrderDetails) return;
     
     const totalAmount = currentOrderDetails.total_amount_cents / 100;
-    const cashStr = prompt(`Totale conto: ${totalAmount.toFixed(2)} €\nQuanto contante ti è stato consegnato dal cliente?`);
+    const cashStr = prompt(`Totale conto: ${totalAmount.toFixed(2)} €\nQuanto contante ti è stato consegnato dal cliente?\n(Lascia vuoto se importo esatto)`);
     if (cashStr === null) return; 
 
-    const cashReceived = parseFloat(cashStr.replace(',', '.'));
-    if (isNaN(cashReceived) || cashReceived < totalAmount) {
-        alert("Attenzione: l'importo inserito non è valido o è inferiore al totale.");
-        return;
+    let cashReceived = totalAmount;
+    if (cashStr.trim() !== "") {
+        cashReceived = parseFloat(cashStr.replace(',', '.'));
+        if (isNaN(cashReceived) || cashReceived < totalAmount) {
+            alert("Attenzione: l'importo inserito non è valido o è inferiore al totale.");
+            return;
+        }
     }
     
     const change = cashReceived - totalAmount;
-    if (confirm(`Contante ricevuto: ${cashReceived.toFixed(2)} €\nDa dare di resto: ${change.toFixed(2)} €\n\nConfermi la chiusura definitiva del conto?`)) {
+    let confirmMsg = `Confermi la chiusura definitiva del conto?`;
+    if (cashStr.trim() !== "") {
+        confirmMsg = `Contante ricevuto: ${cashReceived.toFixed(2)} €\nDa dare di resto: ${change.toFixed(2)} €\n\nConfermi la chiusura?`;
+    }
+
+    if (confirm(confirmMsg)) {
       btnCompleteCheckout.disabled = true;
       try {
         await ApiClient.checkoutOrder(currentOrderDetails.id);
