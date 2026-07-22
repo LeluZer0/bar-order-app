@@ -102,7 +102,11 @@ function showScreen(screenId) {
     screenOrder.classList.add('active');
     navOrder.classList.add('active');
     navOrder.disabled = false;
-    cartTableLabel.textContent = activeTable.name;
+    if (activeTable.status === 'occupato' || activeTable.status === 'in_chiusura') {
+      cartTableLabel.innerHTML = `${activeTable.name} <span class="badge-aggiunta" style="font-size: 0.75rem; background: var(--color-occupato-bg); color: var(--color-occupato); padding: 2px 6px; border-radius: 4px; margin-left: 8px;">+ Aggiunta</span>`;
+    } else {
+      cartTableLabel.textContent = activeTable.name;
+    }
   }
 }
 

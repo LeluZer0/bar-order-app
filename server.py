@@ -235,7 +235,7 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
             else:
                 self.send_json_response(404, {"error": "Tavolo non trovato"})
 
-        # 2. Create Order: POST /api/orders
+        # 2. Create or Append Order: POST /api/orders
         elif self.path == '/api/orders':
             table_id = payload.get('table_id')
             items = payload.get('items', [])
@@ -254,6 +254,77 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
 
             if not items:
                 self.send_json_response(400, {"error": "L'ordine deve contenere almeno un articolo"})
+                return
+
+            existing_order_id = table_ref.get('current_order_id')
+            existing_order = db.get('orders', {}).get(existing_order_id) if existing_order_id else None
+
+            if existing_order and existing_order['status'] != 'pagato':
+                # Appendi i prodotti all'ordine esistente del tavolo occupato
+                order_id = existing_order['id']
+                total_cents = 0
+                processed_items = []
+                
+                # Conta gli articoli esistenti per generare ID univoci e non conflittuali
+                existing_items_count = sum(1 for item in db.get('order_items', {}).values() if item.get('order_id') == order_id)
+
+                for index, item in enumerate(items):
+                    prod_id = item.get('product_id')
+                    quantity = item.get('quantity', 1)
+                    item_notes = item.get('notes', '')
+                    chosen_customs = item.get('customizations', {})
+
+                    product = next((p for p in db['products'] if p['id'] == prod_id), None)
+                    if not product:
+                        self.send_json_response(404, {"error": f"Prodotto '{prod_id}' non trovato"})
+                        return
+
+                    unit_price = product['price_cents']
+                    add_ons = chosen_customs.get('add_ons', [])
+                    for add_on_name in add_ons:
+                        add_on_def = next((a for a in product['customizations'].get('add_ons', []) if a['name'] == add_on_name), None)
+                        if add_on_def:
+                            unit_price += add_on_def['price_cents']
+
+                    item_total = unit_price * quantity
+                    total_cents += item_total
+
+                    item_id = f"item_{order_id}_{existing_items_count + index}_{uuid.uuid4().hex[:4]}"
+                    order_item = {
+                        "id": item_id,
+                        "order_id": order_id,
+                        "product_id": prod_id,
+                        "name": product['name'],
+                        "quantity": quantity,
+                        "unit_price_cents": unit_price,
+                        "customizations": chosen_customs,
+                        "notes": item_notes
+                    }
+                    processed_items.append(order_item)
+
+                for oi in processed_items:
+                    db['order_items'][oi['id']] = oi
+
+                existing_order['total_amount_cents'] += total_cents
+                
+                if notes:
+                    if existing_order.get('notes'):
+                        existing_order['notes'] += f" | {notes}"
+                    else:
+                        existing_order['notes'] = notes
+                
+                # Rimetti lo stato in 'in_preparazione' per far vedere l'ordine aggiornato
+                existing_order['status'] = 'in_preparazione'
+                
+                # Forza lo stato tavolo a occupato
+                table_ref['status'] = 'occupato'
+
+                save_db(db)
+
+                response_data = existing_order.copy()
+                all_items = [item for item in db.get('order_items', {}).values() if item.get('order_id') == order_id]
+                response_data['items'] = all_items
+                self.send_json_response(200, response_data)
                 return
 
             total_cents = 0

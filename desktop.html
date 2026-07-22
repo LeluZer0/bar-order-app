@@ -35,14 +35,13 @@
           <span class="nav-icon">📋</span>
           Monitor Tavoli
         </button>
-        <button id="btn-nav-kitchen" class="nav-item">
-          <span class="nav-icon">🍳</span>
-          Monitor Cucina
-          <span id="kitchen-badge" class="badge" style="display: none;">0</span>
-        </button>
         <button id="btn-nav-orders" class="nav-item">
           <span class="nav-icon">📊</span>
           Riepilogo Ordini
+        </button>
+        <button id="btn-nav-sondaggio" class="nav-item">
+          <span class="nav-icon">📈</span>
+          Sondaggio Vendite
         </button>
         <button id="btn-nav-admin" class="nav-item">
           <span class="nav-icon">⚙️</span>
@@ -105,26 +104,6 @@
         </div>
       </section>
 
-      <!-- SECTION 2: MONITOR CUCINA (KDS) -->
-      <section id="screen-kitchen" class="screen-section">
-        <div class="kitchen-kds-container">
-          <div class="section-title-row">
-            <h3>Comande in Preparazione</h3>
-            <div class="kds-legend">
-              <span class="legend-item"><span class="legend-dot preparaz"></span>In Preparazione</span>
-              <span class="legend-item"><span class="legend-dot completato"></span>Pronto per il Servizio</span>
-            </div>
-          </div>
-          
-          <!-- Contenitore delle comande -->
-          <div id="kds-orders-grid" class="kds-orders-grid">
-            <div class="kds-empty-state">
-              <span>🍳</span>
-              <p>Nessun ordine da preparare al momento.</p>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- SECTION 3: AMMINISTRAZIONE -->
       <section id="screen-admin" class="screen-section">
@@ -303,6 +282,46 @@
                   <!-- Caricato dinamicamente -->
                 </tbody>
               </table>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- SECTION 5: SONDAGGIO VENDITE -->
+      <section id="screen-sondaggio" class="screen-section">
+        <div class="sondaggio-container">
+          
+          <!-- Filtri e Azioni -->
+          <div class="filters-bar">
+            <div class="filter-inputs">
+              <div class="filter-group">
+                <label for="sondaggio-date-from">Da:</label>
+                <input type="datetime-local" id="sondaggio-date-from">
+              </div>
+              <div class="filter-group">
+                <label for="sondaggio-date-to">A:</label>
+                <input type="datetime-local" id="sondaggio-date-to">
+              </div>
+              <button id="btn-sondaggio-apply" class="btn btn-primary flex-center">
+                <span>🔍</span> Applica Filtro
+              </button>
+            </div>
+            <div class="filter-shortcuts">
+              <span class="shortcut-label">Scorciatoie:</span>
+              <button id="btn-sondaggio-today" class="btn btn-secondary btn-shortcut">Oggi</button>
+              <button id="btn-sondaggio-yesterday" class="btn btn-secondary btn-shortcut">Ieri</button>
+              <button id="btn-sondaggio-all" class="btn btn-secondary btn-shortcut">Tutto</button>
+            </div>
+          </div>
+
+          <!-- Sondaggio Dati -->
+          <div class="sondaggio-content-card">
+            <div class="section-title-row">
+              <h3>Statistiche Vendite Prodotti (Sondaggio)</h3>
+            </div>
+            <div id="sondaggio-results" class="sondaggio-results-grid">
+              <!-- Caricato dinamicamente -->
             </div>
           </div>
 

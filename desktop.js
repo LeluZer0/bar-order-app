@@ -17,22 +17,20 @@ let editingProductId = null;
 
 // --- ELEMENTI DEL DOM ---
 const screenTables = document.getElementById('screen-tables');
-const screenKitchen = document.getElementById('screen-kitchen');
 const screenAdmin = document.getElementById('screen-admin');
 const screenOrders = document.getElementById('screen-orders');
+const screenSondaggio = document.getElementById('screen-sondaggio');
 
 const btnNavTables = document.getElementById('btn-nav-tables');
-const btnNavKitchen = document.getElementById('btn-nav-kitchen');
 const btnNavAdmin = document.getElementById('btn-nav-admin');
 const btnNavOrders = document.getElementById('btn-nav-orders');
+const btnNavSondaggio = document.getElementById('btn-nav-sondaggio');
 
 const screenTitle = document.getElementById('screen-title');
 const btnRefresh = document.getElementById('btn-refresh');
-const kitchenBadge = document.getElementById('kitchen-badge');
 
 const tablesGrid = document.getElementById('tables-grid');
 const checkoutPanelContent = document.getElementById('checkout-panel-content');
-const kdsOrdersGrid = document.getElementById('kds-orders-grid');
 
 // DOM Amministrazione
 const adminTabTables = document.getElementById('admin-tab-tables');
@@ -81,25 +79,20 @@ function showScreen(screenId) {
   currentScreen = screenId;
   
   screenTables.classList.remove('active');
-  screenKitchen.classList.remove('active');
   screenAdmin.classList.remove('active');
   screenOrders.classList.remove('active');
+  screenSondaggio.classList.remove('active');
   
   btnNavTables.classList.remove('active');
-  btnNavKitchen.classList.remove('active');
   btnNavAdmin.classList.remove('active');
   btnNavOrders.classList.remove('active');
+  btnNavSondaggio.classList.remove('active');
   
   if (screenId === 'tables') {
     screenTables.classList.add('active');
     btnNavTables.classList.add('active');
     screenTitle.textContent = 'Monitor Tavoli';
     loadTables();
-  } else if (screenId === 'kitchen') {
-    screenKitchen.classList.add('active');
-    btnNavKitchen.classList.add('active');
-    screenTitle.textContent = 'Monitor Cucina (KDS)';
-    loadKDS();
   } else if (screenId === 'admin') {
     screenAdmin.classList.add('active');
     btnNavAdmin.classList.add('active');
@@ -111,6 +104,11 @@ function showScreen(screenId) {
     btnNavOrders.classList.add('active');
     screenTitle.textContent = 'Riepilogo Ordini Chiusi';
     loadOrdersSummary();
+  } else if (screenId === 'sondaggio') {
+    screenSondaggio.classList.add('active');
+    btnNavSondaggio.classList.add('active');
+    screenTitle.textContent = 'Sondaggio Vendite';
+    loadSondaggio();
   }
 }
 
@@ -186,26 +184,193 @@ async function loadTables() {
   }
 }
 
-async function loadKDS() {
-  try {
-    const orders = await ApiClient.getOrders();
-    activeOrders = orders.filter(o => o.status === 'in_preparazione' || o.status === 'completato');
+// --- SONDAGGIO VENDITE LOGICA ---
+function initSondaggioFilters() {
+  const fromInput = document.getElementById('sondaggio-date-from');
+  const toInput = document.getElementById('sondaggio-date-to');
+  
+  if (!fromInput.value && !toInput.value) {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
     
-    // Aggiorna Badge
-    const pendingCount = activeOrders.filter(o => o.status === 'in_preparazione').length;
-    if (pendingCount > 0) {
-      kitchenBadge.textContent = pendingCount;
-      kitchenBadge.style.display = 'inline-block';
-    } else {
-      kitchenBadge.style.display = 'none';
-    }
-    
-    if (currentScreen === 'kitchen') {
-      renderKDS(activeOrders);
-    }
-  } catch (error) {
-    console.error('Errore nel caricamento delle comande:', error);
+    fromInput.value = formatDateTimeLocal(todayStart);
+    toInput.value = formatDateTimeLocal(todayEnd);
   }
+}
+
+function setSondaggioFilterRange(from, to) {
+  document.getElementById('sondaggio-date-from').value = formatDateTimeLocal(from);
+  document.getElementById('sondaggio-date-to').value = formatDateTimeLocal(to);
+}
+
+async function loadSondaggio() {
+  initSondaggioFilters();
+  
+  const fromInput = document.getElementById('sondaggio-date-from').value;
+  const toInput = document.getElementById('sondaggio-date-to').value;
+  
+  const fromDate = fromInput ? new Date(fromInput) : null;
+  const toDate = toInput ? new Date(toInput) : null;
+  
+  try {
+    const allOrders = await ApiClient.getOrders();
+    const closedOrders = allOrders.filter(o => o.status === 'pagato');
+    
+    const filteredOrders = closedOrders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      if (fromDate && orderDate < fromDate) return false;
+      if (toDate && orderDate > toDate) return false;
+      return true;
+    });
+    
+    renderSondaggio(filteredOrders);
+  } catch (err) {
+    console.error('Errore nel caricamento del sondaggio:', err);
+    showToast('Impossibile caricare il sondaggio vendite', 'error');
+  }
+}
+
+function renderSondaggio(orders) {
+  const container = document.getElementById('sondaggio-results');
+  container.innerHTML = '';
+  
+  if (orders.length === 0) {
+    container.innerHTML = `
+      <div style="grid-column: 1 / -1; text-align: center; color: var(--text-muted); padding: 3rem;">
+        Nessun prodotto venduto nel periodo selezionato.
+      </div>
+    `;
+    return;
+  }
+  
+  // Aggreghiamo le vendite per prodotto
+  const productSales = {};
+  
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const pid = item.product_id;
+      if (!productSales[pid]) {
+        productSales[pid] = {
+          productId: pid,
+          name: item.name,
+          quantity: 0,
+          variants: {},
+          addOns: {},
+          categoryId: null
+        };
+      }
+      
+      productSales[pid].quantity += item.quantity;
+      
+      // Mappatura categoryId
+      if (menuData && menuData.products) {
+        const menuProd = menuData.products.find(p => p.id === pid);
+        if (menuProd) {
+          productSales[pid].categoryId = menuProd.category_id;
+        }
+      }
+      
+      const customs = item.customizations || {};
+      
+      // Varianti
+      if (customs.variant) {
+        const v = customs.variant;
+        productSales[pid].variants[v] = (productSales[pid].variants[v] || 0) + item.quantity;
+      }
+      
+      // Aggiunte
+      if (customs.add_ons && customs.add_ons.length > 0) {
+        customs.add_ons.forEach(a => {
+          productSales[pid].addOns[a] = (productSales[pid].addOns[a] || 0) + item.quantity;
+        });
+      }
+    });
+  });
+  
+  // Raggruppiamo i prodotti per categoria
+  const categoriesGroup = {};
+  
+  Object.values(productSales).forEach(salesInfo => {
+    let catId = salesInfo.categoryId || 'altro';
+    if (!categoriesGroup[catId]) {
+      categoriesGroup[catId] = [];
+    }
+    categoriesGroup[catId].push(salesInfo);
+  });
+  
+  // Per ciascuna categoria in menuData (più 'altro' se presente)
+  const categoriesList = [...menuData.categories];
+  if (categoriesGroup['altro']) {
+    categoriesList.push({ id: 'altro', name: 'Altro / Non Assegnato', icon: '❓' });
+  }
+  
+  categoriesList.forEach(cat => {
+    const productsInCat = categoriesGroup[cat.id];
+    if (!productsInCat || productsInCat.length === 0) return;
+    
+    // Ordina i prodotti per quantità decrescente
+    productsInCat.sort((a, b) => b.quantity - a.quantity);
+    
+    // Calcoliamo la quantità totale venduta nella categoria
+    const catTotalQty = productsInCat.reduce((sum, p) => sum + p.quantity, 0);
+    
+    const catCard = document.createElement('div');
+    catCard.className = 'sondaggio-cat-card';
+    
+    let prodItemsHtml = '';
+    
+    productsInCat.forEach(prod => {
+      const percent = catTotalQty > 0 ? Math.round((prod.quantity / catTotalQty) * 100) : 0;
+      
+      // Costruisci sottotitolo varianti e aggiunte
+      const subtitleParts = [];
+      
+      const varParts = Object.entries(prod.variants)
+        .map(([vName, vCount]) => `${vName} (${vCount})`);
+      if (varParts.length > 0) {
+        subtitleParts.push(`Varianti: ${varParts.join(', ')}`);
+      }
+      
+      const addOnParts = Object.entries(prod.addOns)
+        .map(([aName, aCount]) => `${aName} (${aCount})`);
+      if (addOnParts.length > 0) {
+        subtitleParts.push(`Aggiunte: ${addOnParts.join(', ')}`);
+      }
+      
+      const subtitleText = subtitleParts.length > 0 
+        ? subtitleParts.join(' • ') 
+        : 'Nessuna variante o aggiunta selezionata';
+        
+      prodItemsHtml += `
+        <div class="sondaggio-prod-item">
+          <div class="sondaggio-prod-info">
+            <span class="sondaggio-prod-name">${prod.name}</span>
+            <span class="sondaggio-prod-qty">${prod.quantity} venduti</span>
+          </div>
+          <div class="sondaggio-progress-bar-bg">
+            <div class="sondaggio-progress-bar-fg" style="width: ${percent}%;"></div>
+          </div>
+          <div class="sondaggio-prod-sub">${subtitleText}</div>
+        </div>
+      `;
+    });
+    
+    catCard.innerHTML = `
+      <div class="sondaggio-cat-header">
+        <div class="sondaggio-cat-title">
+          <span>${cat.icon}</span> ${cat.name}
+        </div>
+        <span class="sondaggio-cat-total">${catTotalQty} Totali</span>
+      </div>
+      <div class="sondaggio-prod-list">
+        ${prodItemsHtml}
+      </div>
+    `;
+    
+    container.appendChild(catCard);
+  });
 }
 
 // --- RIEPILOGO ORDINI LOGICA ---
@@ -505,103 +670,6 @@ async function loadCheckoutPanel(table) {
   }
 }
 
-// --- RENDERING MONITOR CUCINA (KDS) ---
-function renderKDS(orders) {
-  kdsOrdersGrid.innerHTML = '';
-  
-  if (orders.length === 0) {
-    kdsOrdersGrid.innerHTML = `
-      <div class="kds-empty-state">
-        <span>🍳</span>
-        <p>Nessun ordine da preparare al momento in cucina.</p>
-      </div>
-    `;
-    return;
-  }
-  
-  orders.forEach(order => {
-    // Calcoliamo i minuti trascorsi dalla ricezione della comanda
-    const createdDate = new Date(order.created_at);
-    const now = new Date();
-    const elapsedMinutes = Math.floor((now - createdDate) / 60000);
-    
-    let timeClass = '';
-    if (elapsedMinutes >= 15) timeClass = 'danger';
-    else if (elapsedMinutes >= 8) timeClass = 'warning';
-    
-    const card = document.createElement('div');
-    card.className = `kds-card ${order.status}`;
-    
-    let itemsHtml = '';
-    order.items.forEach(item => {
-      let customsHtml = '';
-      const customs = item.customizations || {};
-      const parts = [];
-      if (customs.variant) parts.push(customs.variant);
-      if (customs.add_ons && customs.add_ons.length > 0) parts.push(customs.add_ons.join(', '));
-      if (parts.length > 0) customsHtml = `<div class="kds-item-customs">${parts.join(' - ')}</div>`;
-      
-      itemsHtml += `
-        <div class="kds-item">
-          <span class="kds-item-qty">${item.quantity}x</span>
-          <div class="kds-item-details">
-            <span class="kds-item-name">${item.name}</span>
-            ${customsHtml}
-            ${item.notes ? `<div class="kds-item-notes">Nota: ${item.notes}</div>` : ''}
-          </div>
-        </div>
-      `;
-    });
-    
-    const isCompleted = order.status === 'completato';
-    const actionText = isCompleted ? '🧹 Servito (Togli)' : '🍳 Segna come Pronto';
-    const actionClass = isCompleted ? 'btn-secondary' : 'btn-success';
-    
-    // Recuperiamo il nome del tavolo per l'ordine
-    card.innerHTML = `
-      <div class="kds-card-header">
-        <div class="kds-card-table">Tavolo ${order.table_id}</div>
-        <div class="kds-card-time ${timeClass}">${elapsedMinutes} min fa</div>
-      </div>
-      
-      <div class="kds-card-items">
-        ${itemsHtml}
-      </div>
-      
-      ${order.notes ? `<div class="kds-card-notes">Note Generali: "${order.notes}"</div>` : ''}
-      
-      <div class="kds-card-footer">
-        <button class="btn ${actionClass} btn-block btn-kds-action" data-id="${order.id}" data-status="${order.status}">
-          ${actionText}
-        </button>
-      </div>
-    `;
-    
-    card.querySelector('.btn-kds-action').addEventListener('click', async () => {
-      const currentStatus = order.status;
-      try {
-        if (currentStatus === 'in_preparazione') {
-          // Passa a completato (pronto per essere servito)
-          await ApiClient.updateOrderStatus(order.id, 'completato');
-          showToast('Comanda pronta! Il cameriere può servire.', 'success');
-        } else {
-          // Passa a pagato / servito (nascondi da cucina, libera tavolo se non ha altri ordini)
-          // In questo caso, lo togliamo solo dallo schermo cucina passandolo a uno stato nascosto (es: 'completato' ma pronto per il checkout)
-          // Aggiorniamo semplicemente lo stato del KDS
-          await ApiClient.updateOrderStatus(order.id, 'completato'); // rimane completato, ma lo nascondiamo o aggiorniamo
-          // Se clicchiamo "servito" sul piatto pronto, aggiorniamo visivamente. In questo mockup, cliccare su servito rimuove la visualizzazione
-          card.style.opacity = '0.3';
-          setTimeout(() => card.remove(), 300);
-        }
-        loadKDS();
-      } catch (err) {
-        showToast('Errore nell\'aggiornare lo stato della comanda', 'error');
-      }
-    });
-    
-    kdsOrdersGrid.appendChild(card);
-  });
-}
 
 // --- AMMINISTRAZIONE ---
 async function refreshAdminData() {
@@ -837,16 +905,17 @@ function renderAdminProducts(products) {
 function setupEventListeners() {
   // Sidebar Nav
   btnNavTables.addEventListener('click', () => showScreen('tables'));
-  btnNavKitchen.addEventListener('click', () => showScreen('kitchen'));
   btnNavAdmin.addEventListener('click', () => showScreen('admin'));
+  btnNavSondaggio.addEventListener('click', () => showScreen('sondaggio'));
   
   // Refresh Manuale
   btnRefresh.addEventListener('click', () => {
     showToast('Aggiornamento in corso...', 'info');
     loadTables();
-    loadKDS();
     if (currentScreen === 'orders') {
       loadOrdersSummary();
+    } else if (currentScreen === 'sondaggio') {
+      loadSondaggio();
     }
   });
   
@@ -1015,6 +1084,43 @@ function setupEventListeners() {
     showToast('Filtro temporale rimosso', 'success');
     loadOrdersSummary();
   });
+
+  // Sondaggio Nav & Filtri
+  document.getElementById('btn-sondaggio-apply').addEventListener('click', () => {
+    showToast('Aggiornamento statistiche...', 'info');
+    loadSondaggio();
+  });
+  
+  document.getElementById('btn-sondaggio-today').addEventListener('click', () => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+    
+    setSondaggioFilterRange(todayStart, todayEnd);
+    showToast('Filtro Sondaggio impostato su Oggi', 'success');
+    loadSondaggio();
+  });
+
+  document.getElementById('btn-sondaggio-yesterday').addEventListener('click', () => {
+    const yesterdayStart = new Date();
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+    yesterdayStart.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date();
+    yesterdayEnd.setDate(yesterdayEnd.getDate() - 1);
+    yesterdayEnd.setHours(23, 59, 59, 999);
+    
+    setSondaggioFilterRange(yesterdayStart, yesterdayEnd);
+    showToast('Filtro Sondaggio impostato su Ieri', 'success');
+    loadSondaggio();
+  });
+
+  document.getElementById('btn-sondaggio-all').addEventListener('click', () => {
+    document.getElementById('sondaggio-date-from').value = '';
+    document.getElementById('sondaggio-date-to').value = '';
+    showToast('Filtro temporale Sondaggio rimosso', 'success');
+    loadSondaggio();
+  });
 }
 
 // --- AVVIO DASHBOARD ---
@@ -1022,7 +1128,6 @@ async function initDashboard() {
   await refreshMenu();
   setupEventListeners();
   loadTables();
-  loadKDS();
 }
 
 document.addEventListener('DOMContentLoaded', initDashboard);
