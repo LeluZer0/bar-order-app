@@ -6,7 +6,7 @@ import os
 import sys
 
 URL_BASE = 'http://localhost:8080'
-DB_FILE = 'db.json'
+DB_FILE = 'test_db.json'
 
 def make_request(path, method='GET', data=None):
     url = f"{URL_BASE}{path}"
@@ -82,6 +82,18 @@ def test_flow():
     assert len(order_details['items']) == 2
     print(f"[OK] GET /api/orders/{order_id}: Caricati dettagli ordine con {len(order_details['items'])} elementi.")
 
+    # 4b. Elimina un articolo dall'ordine
+    item_to_delete = order_details['items'][0]['id']
+    status, delete_res = make_request(f'/api/order-items/{item_to_delete}', 'DELETE')
+    assert status == 200
+    print(f"[OK] DELETE /api/order-items/{item_to_delete}: Articolo eliminato con successo.")
+
+    # Verifica dettagli ordine aggiornato
+    status, order_details_after = make_request(f'/api/orders/{order_id}')
+    assert status == 200
+    assert len(order_details_after['items']) == 1
+    print(f"[OK] GET /api/orders/{order_id} (dopo rimozione): Contiene 1 elemento.")
+
     # 5. Aggiorna stato ordine in 'completato'
     status, res = make_request(f'/api/orders/{order_id}/status', 'POST', {"status": "completato"})
     assert status == 200
@@ -102,8 +114,14 @@ def test_flow():
     print("\n--- Tutti i test delle API sono passati con successo! ---")
 
 if __name__ == '__main__':
+    # Rimuovi file db residuo se esiste
+    if os.path.exists(DB_FILE):
+        os.remove(DB_FILE)
+
     # Start the server as a subprocess to run tests
-    server_process = subprocess.Popen([sys.executable, 'server.py'])
+    env = os.environ.copy()
+    env['DB_FILE_PATH'] = DB_FILE
+    server_process = subprocess.Popen([sys.executable, 'server.py'], env=env)
     time.sleep(2)  # Wait for server to start
     
     try:

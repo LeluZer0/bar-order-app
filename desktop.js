@@ -574,7 +574,7 @@ async function loadCheckoutPanel(table) {
       if (parts.length > 0) customsText = `(${parts.join(' - ')})`;
       
       itemsHtml += `
-        <div class="checkout-item-row">
+        <div class="checkout-item-row" style="display: flex; justify-content: space-between; align-items: center;">
           <div class="checkout-item-info">
             <span class="checkout-item-qty">${item.quantity}x</span>
             <div>
@@ -583,7 +583,10 @@ async function loadCheckoutPanel(table) {
               ${item.notes ? `<div class="checkout-item-customs" style="color: var(--color-occupato); font-style: italic;">Nota: ${item.notes}</div>` : ''}
             </div>
           </div>
-          <span class="checkout-item-price">${((item.unit_price_cents * item.quantity) / 100).toFixed(2)} €</span>
+          <div style="display: flex; align-items: center; gap: 0.8rem;">
+            <span class="checkout-item-price">${((item.unit_price_cents * item.quantity) / 100).toFixed(2)} €</span>
+            <button class="btn-remove-desktop-item" data-item-id="${item.id}" style="background: none; border: none; color: #ff4d4f; cursor: pointer; font-size: 1.1rem; padding: 4px;" title="Rimuovi elemento">🗑️</button>
+          </div>
         </div>
       `;
     });
@@ -663,6 +666,39 @@ async function loadCheckoutPanel(table) {
           showToast('Errore durante la chiusura del conto', 'error');
         }
       }
+    });
+
+    // Event listener per rimozione articolo
+    const removeButtons = checkoutPanelContent.querySelectorAll('.btn-remove-desktop-item');
+    removeButtons.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const itemId = btn.getAttribute('data-item-id');
+        if (confirm('Sei sicuro di voler rimuovere questo prodotto dall\'ordine?')) {
+          try {
+            btn.disabled = true;
+            btn.style.opacity = 0.5;
+            await ApiClient.deleteOrderItem(itemId);
+            showToast("Prodotto rimosso con successo", "success");
+            
+            // Ricarica i tavoli (che ricaricherà anche questo pannello checkout)
+            const tables = await ApiClient.getTables();
+            const updatedTable = tables.find(t => t.id === table.id);
+            if (updatedTable) {
+              if (updatedTable.status === 'libero') {
+                activeTable = null;
+              } else {
+                activeTable = updatedTable;
+              }
+            }
+            loadTables();
+          } catch (err) {
+            showToast("Errore: " + err.message, "error");
+            btn.disabled = false;
+            btn.style.opacity = 1;
+          }
+        }
+      });
     });
     
   } catch (error) {

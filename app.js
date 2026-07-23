@@ -266,6 +266,7 @@ function handleProductClick(product) {
 // --- GESTIONE MODALE DETTAGLI TAVOLO (CHECKOUT) ---
 
 async function openTableDetailsModal(table) {
+  activeTable = table;
   detailsModalTitle.textContent = `${table.name} - Gestione Comanda`;
   tableActiveOrderDetails.innerHTML = '<div class="skeleton-loader">Caricamento comanda attiva...</div>';
   
@@ -299,15 +300,18 @@ function renderOrderDetails(order) {
     if (parts.length > 0) customsText = `(${parts.join(' - ')})`;
     
     itemsHtml += `
-      <div class="details-item">
-        <div class="details-item-qty-name">
-          <span class="details-item-qty">${item.quantity}x</span>
+      <div class="details-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.8rem 0; border-bottom: 1px solid #eee;">
+        <div class="details-item-qty-name" style="display: flex; align-items: flex-start; gap: 0.5rem;">
+          <span class="details-item-qty" style="font-weight: bold; color: var(--color-primary);">${item.quantity}x</span>
           <div>
-            <div><strong>${item.name}</strong> <span class="details-item-customs">${customsText}</span></div>
-            ${item.notes ? `<div class="details-item-notes">Nota: ${item.notes}</div>` : ''}
+            <div><strong>${item.name}</strong> <span class="details-item-customs" style="font-size: 0.85rem; color: #666;">${customsText}</span></div>
+            ${item.notes ? `<div class="details-item-notes" style="font-size: 0.8rem; color: #888; margin-top: 0.2rem;">Nota: ${item.notes}</div>` : ''}
           </div>
         </div>
-        <div class="details-item-price">${((item.unit_price_cents * item.quantity) / 100).toFixed(2)} €</div>
+        <div style="display: flex; align-items: center; gap: 0.8rem;">
+          <div class="details-item-price" style="font-weight: 600;">${((item.unit_price_cents * item.quantity) / 100).toFixed(2)} €</div>
+          <button class="btn-remove-order-item" data-item-id="${item.id}" style="background: none; border: none; color: #ff4d4f; cursor: pointer; font-size: 1.1rem; padding: 4px;" title="Rimuovi elemento">🗑️</button>
+        </div>
       </div>
     `;
   });
@@ -323,14 +327,48 @@ function renderOrderDetails(order) {
         ${itemsHtml}
       </div>
       
-      ${order.notes ? `<div class="cart-item-notes">Note Generali: "${order.notes}"</div>` : ''}
+      ${order.notes ? `<div class="cart-item-notes" style="margin-top: 0.8rem;">Note Generali: "${order.notes}"</div>` : ''}
 
-      <div class="details-total-box">
+      <div class="details-total-box" style="margin-top: 1rem;">
         <span>Totale da Pagare:</span>
-        <span class="details-total-price">${(order.total_amount_cents / 100).toFixed(2)} €</span>
+        <span class="details-total-price" style="font-size: 1.2rem; font-weight: bold; color: var(--color-secondary);">${(order.total_amount_cents / 100).toFixed(2)} €</span>
       </div>
     </div>
   `;
+
+  // Listener per rimozione articoli
+  const removeButtons = tableActiveOrderDetails.querySelectorAll('.btn-remove-order-item');
+  removeButtons.forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const itemId = btn.getAttribute('data-item-id');
+      if (confirm('Sei sicuro di voler rimuovere questo prodotto dall\'ordine?')) {
+        try {
+          btn.disabled = true;
+          btn.style.opacity = 0.5;
+          await ApiClient.deleteOrderItem(itemId);
+          showToast("Prodotto rimosso con successo", "success");
+          
+          // Ricarica il tavolo per mostrare la UI aggiornata
+          const tables = await ApiClient.getTables();
+          const updatedTable = tables.find(t => t.id === activeTable.id);
+          if (updatedTable) {
+            activeTable = updatedTable;
+            if (activeTable.status === 'libero') {
+              tableDetailsModal.classList.remove('active');
+              renderTables(tables);
+            } else {
+              openTableDetailsModal(activeTable);
+            }
+          }
+        } catch (err) {
+          showToast("Errore: " + err.message, "error");
+          btn.disabled = false;
+          btn.style.opacity = 1;
+        }
+      }
+    });
+  });
 }
 
 // --- GESTIONE MODALE PERSONALIZZAZIONE PRODOTTO ---

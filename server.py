@@ -3,6 +3,7 @@ import os
 import uuid
 import urllib.request
 import urllib.error
+import copy
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
@@ -52,11 +53,118 @@ DEFAULT_DB = {
 
 CACHED_DB = None
 
+def merge_databases(local_db, cloud_db):
+    """
+    Esegue il merge intelligente di due database (locale e cloud).
+    In caso di conflitto, preferisce gli stati ordine più avanzati e unisce le liste ordini.
+    """
+    if not local_db:
+        return copy.deepcopy(cloud_db) if cloud_db else copy.deepcopy(DEFAULT_DB)
+    if not cloud_db:
+        return copy.deepcopy(local_db)
+
+    # Inizializziamo il database risultante con una copia profonda di quello cloud (struttura di base)
+    merged = copy.deepcopy(cloud_db)
+    
+    # 1. Unione delle categorie (unione per ID)
+    cat_map = {c['id']: c for c in merged.get('categories', [])}
+    for c in local_db.get('categories', []):
+        if c['id'] not in cat_map:
+            merged.setdefault('categories', []).append(c)
+            
+    # 2. Unione dei prodotti (unione per ID)
+    prod_map = {p['id']: p for p in merged.get('products', [])}
+    for p in local_db.get('products', []):
+        if p['id'] not in prod_map:
+            merged.setdefault('products', []).append(p)
+            
+    # 3. Unione e risoluzione conflitti degli ordini
+    local_orders = local_db.get('orders', {})
+    cloud_orders = cloud_db.get('orders', {})
+    all_order_ids = set(local_orders.keys()) | set(cloud_orders.keys())
+    
+    merged_orders = {}
+    for oid in all_order_ids:
+        in_local = oid in local_orders
+        in_cloud = oid in cloud_orders
+        
+        if in_local and not in_cloud:
+            merged_orders[oid] = copy.deepcopy(local_orders[oid])
+        elif in_cloud and not in_local:
+            merged_orders[oid] = copy.deepcopy(cloud_orders[oid])
+        else:
+            # Presente in entrambi. Risolviamo il conflitto
+            o_local = local_orders[oid]
+            o_cloud = cloud_orders[oid]
+            
+            # Priorità per stato avanzato: 'pagato' > 'completato' > 'in_preparazione'
+            status_priority = {'pagato': 3, 'completato': 2, 'in_preparazione': 1}
+            p_local = status_priority.get(o_local.get('status'), 0)
+            p_cloud = status_priority.get(o_cloud.get('status'), 0)
+            
+            # Timestamp di aggiornamento
+            up_local = o_local.get('updated_at', o_local.get('created_at', ''))
+            up_cloud = o_cloud.get('updated_at', o_cloud.get('created_at', ''))
+            
+            if p_local > p_cloud:
+                merged_orders[oid] = copy.deepcopy(o_local)
+            elif p_cloud > p_local:
+                merged_orders[oid] = copy.deepcopy(o_cloud)
+            elif up_local > up_cloud:
+                merged_orders[oid] = copy.deepcopy(o_local)
+            else:
+                merged_orders[oid] = copy.deepcopy(o_cloud)
+                
+    merged['orders'] = merged_orders
+
+    # 4. Unione degli elementi dell'ordine (order_items)
+    local_items = local_db.get('order_items', {})
+    cloud_items = cloud_db.get('order_items', {})
+    all_item_ids = set(local_items.keys()) | set(cloud_items.keys())
+    
+    merged_items = {}
+    for iid in all_item_ids:
+        item = local_items.get(iid) or cloud_items.get(iid)
+        order_id = item.get('order_id')
+        if order_id in merged_orders:
+            # Se presente in entrambi, preferiamo quello locale se l'ordine finale corrisponde a quello locale
+            if order_id in local_orders and merged_orders[order_id] == local_orders[order_id] and iid in local_items:
+                merged_items[iid] = copy.deepcopy(local_items[iid])
+            else:
+                merged_items[iid] = copy.deepcopy(cloud_items.get(iid) or local_items.get(iid))
+                
+    merged['order_items'] = merged_items
+    
+    # 5. Unione dei tavoli
+    tables_map = {t['id']: t for t in cloud_db.get('tables', [])}
+    for t in local_db.get('tables', []):
+        if t['id'] not in tables_map:
+            tables_map[t['id']] = copy.deepcopy(t)
+            
+    # Sincronizzazione degli stati dei tavoli in base agli ordini attivi reali (non pagati)
+    active_orders = {oid: o for oid, o in merged_orders.items() if o.get('status') != 'pagato'}
+    table_to_active_order = {o.get('table_id'): oid for oid, o in active_orders.items()}
+    
+    tables = list(tables_map.values())
+    for t in tables:
+        tid = t['id']
+        if tid in table_to_active_order:
+            t['status'] = 'occupato'
+            t['current_order_id'] = table_to_active_order[tid]
+        else:
+            t['status'] = 'libero'
+            t['current_order_id'] = None
+            
+    merged['tables'] = tables
+    return merged
+
 def load_db():
     global CACHED_DB
     if CACHED_DB is not None:
         return CACHED_DB
 
+    # 1. Carica da cloud (se configurato)
+    cloud_db = None
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
         req = urllib.request.Request(url)
@@ -65,50 +173,74 @@ def load_db():
         req.add_header('X-Bin-Meta', 'false')
         try:
             with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode('utf-8'))
-                CACHED_DB = data
-                print("[JSONBin] Database caricato da JSONBin.io con successo (Cache inizializzata).")
-                return CACHED_DB
+                cloud_db = json.loads(response.read().decode('utf-8'))
+                print("[JSONBin] Database caricato da JSONBin.io con successo.")
         except Exception as e:
             print(f"[JSONBin] Errore caricamento da JSONBin: {e}. Uso fallback locale.")
             
-    if not os.path.exists(DB_FILE):
+    # 2. Carica da locale
+    local_db = None
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, 'r', encoding='utf-8') as f:
+                local_db = json.load(f)
+                print("[Local] Database locale caricato con successo.")
+        except Exception as e:
+            print(f"[Local] Errore lettura db.json locale: {e}.")
+
+    # 3. Esegui il merge e salva il risultato
+    if cloud_db and local_db:
+        print("[System] Avvio merge intelligente tra database locale e cloud...")
+        merged_db = merge_databases(local_db, cloud_db)
+        # Sincronizziamo subito sia in locale che in cloud per riallinearli
+        CACHED_DB = merged_db
+        save_db(merged_db)
+        return CACHED_DB
+    elif cloud_db:
+        CACHED_DB = cloud_db
+        save_db_local_only(cloud_db)
+        return CACHED_DB
+    elif local_db:
+        CACHED_DB = local_db
+        save_db_cloud_only(local_db)
+        return CACHED_DB
+    else:
+        CACHED_DB = DEFAULT_DB
         save_db(DEFAULT_DB)
-        CACHED_DB = DEFAULT_DB
-        return DEFAULT_DB
-    try:
-        with open(DB_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            CACHED_DB = data
-            print("[Local] Database caricato da file locale db.json.")
-            return CACHED_DB
-    except Exception:
-        CACHED_DB = DEFAULT_DB
         return DEFAULT_DB
 
 def save_db(data):
     global CACHED_DB
     CACHED_DB = data  # Aggiorna sempre la cache in memoria prima di tutto
-
+    save_db_local_only(data)
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
-        url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
-        req = urllib.request.Request(url, method='PUT')
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
-        req.add_header('X-Master-Key', JSONBIN_API_KEY)
-        req.add_header('Content-Type', 'application/json')
-        req.add_header('X-Bin-Meta', 'false')
-        
-        json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
-        try:
-            with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
-                print("[JSONBin] Modifiche persistite su JSONBin.io.")
-                return
-        except Exception as e:
-            print(f"[JSONBin] Errore salvataggio su JSONBin: {e}. Salvo localmente.")
-            
-    with open(DB_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        print("[Local] Modifiche salvate localmente su db.json.")
+        save_db_cloud_only(data)
+
+def save_db_local_only(data):
+    try:
+        with open(DB_FILE, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            print("[Local] Modifiche salvate localmente su db.json.")
+    except Exception as e:
+        print(f"[Local] Errore salvataggio locale: {e}")
+
+def save_db_cloud_only(data):
+    url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+    req = urllib.request.Request(url, method='PUT')
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
+    req.add_header('X-Master-Key', JSONBIN_API_KEY)
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('X-Bin-Meta', 'false')
+    # Abilitiamo il versionamento per poter recuperare lo storico delle modifiche in cloud
+    req.add_header('X-Bin-Versioning', 'true')
+    
+    json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
+    try:
+        with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
+            print("[JSONBin] Modifiche persistite su JSONBin.io (nuova versione creata).")
+    except Exception as e:
+        print(f"[JSONBin] Errore salvataggio su JSONBin: {e}.")
+
 
 class BarRequestHandler(SimpleHTTPRequestHandler):
     def end_headers(self):
@@ -315,6 +447,7 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
                 
                 # Rimetti lo stato in 'in_preparazione' per far vedere l'ordine aggiornato
                 existing_order['status'] = 'in_preparazione'
+                existing_order['updated_at'] = datetime.utcnow().isoformat() + "Z"
                 
                 # Forza lo stato tavolo a occupato
                 table_ref['status'] = 'occupato'
@@ -374,7 +507,8 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
                 "status": "in_preparazione",
                 "total_amount_cents": total_cents,
                 "notes": notes,
-                "created_at": datetime.utcnow().isoformat() + "Z"
+                "created_at": datetime.utcnow().isoformat() + "Z",
+                "updated_at": datetime.utcnow().isoformat() + "Z"
             }
             db['orders'][order_id] = new_order
 
@@ -403,6 +537,7 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
                 return
 
             orders[order_id]['status'] = status
+            orders[order_id]['updated_at'] = datetime.utcnow().isoformat() + "Z"
             save_db(db)
             self.send_json_response(200, {"success": True, "message": f"Stato ordine {order_id} aggiornato a '{status}'"})
 
@@ -418,6 +553,7 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
 
             order = orders[order_id]
             order['status'] = 'pagato'
+            order['updated_at'] = datetime.utcnow().isoformat() + "Z"
 
             table_id = order['table_id']
             for table in db['tables']:
@@ -503,8 +639,57 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
     def handle_api_delete(self):
         db = load_db()
         
+        # DELETE /api/order-items/:id
+        if self.path.startswith('/api/order-items/'):
+            parts = self.path.split('/')
+            try:
+                item_id = parts[3]
+            except IndexError:
+                self.send_json_response(400, {"error": "ID elemento non valido"})
+                return
+
+            order_items = db.get('order_items', {})
+            if item_id not in order_items:
+                self.send_json_response(404, {"error": "Elemento ordine non trovato"})
+                return
+
+            item = order_items[item_id]
+            order_id = item['order_id']
+            orders = db.get('orders', {})
+            
+            # Calcola il decremento
+            item_total = item.get('unit_price_cents', 0) * item.get('quantity', 1)
+
+            # Rimuovi l'elemento
+            del order_items[item_id]
+
+            if order_id in orders:
+                order = orders[order_id]
+                order['total_amount_cents'] = max(0, order['total_amount_cents'] - item_total)
+                order['updated_at'] = datetime.utcnow().isoformat() + "Z"
+                
+                # Controlla se l'ordine ha ancora elementi
+                remaining_items = [oi for oi in order_items.values() if oi.get('order_id') == order_id]
+                if not remaining_items:
+                    # Se non ci sono più elementi, cancella l'ordine ed esegui il checkout/libera il tavolo
+                    table_id = order.get('table_id')
+                    for table in db['tables']:
+                        if table['id'] == table_id:
+                            table['status'] = 'libero'
+                            table['current_order_id'] = None
+                            break
+                    del db['orders'][order_id]
+                    message = "L'ordine è vuoto ed è stato eliminato. Il tavolo è stato liberato."
+                else:
+                    message = f"Elemento rimosso dall'ordine. Nuovo totale: {order['total_amount_cents'] / 100} €"
+            else:
+                message = "Elemento rimosso."
+
+            save_db(db)
+            self.send_json_response(200, {"success": True, "message": message})
+
         # DELETE /api/admin/tables/:id
-        if self.path.startswith('/api/admin/tables/'):
+        elif self.path.startswith('/api/admin/tables/'):
             parts = self.path.split('/')
             try:
                 table_id = int(parts[4])

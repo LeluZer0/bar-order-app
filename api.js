@@ -96,6 +96,21 @@ export const ApiClient = {
     return res.json();
   },
 
+  /**
+   * Rimuove un articolo da una comanda attiva.
+   */
+  async deleteOrderItem(itemId) {
+    const res = await fetch(`${API_BASE}/order-items/${itemId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Errore nella rimozione dell\'articolo');
+    }
+    return res.json();
+  },
+
   /* ==========================================================================
      SEZIONE AMMINISTRAZIONE (CRUD)
      ========================================================================== */
