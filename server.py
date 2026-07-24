@@ -3,6 +3,7 @@ import os
 import uuid
 import urllib.request
 import urllib.error
+import ssl
 import copy
 from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, HTTPServer
@@ -158,6 +159,46 @@ def merge_databases(local_db, cloud_db):
     merged['tables'] = tables
     return merged
 
+def make_jsonbin_request(url, req_method='GET', data=None):
+    """
+    Esegue una richiesta HTTP a JSONBin.io con gestione degli errori HTTP e SSL.
+    Se si verifica un errore CERTIFICATE_VERIFY_FAILED, tenta il fallback senza verifica SSL.
+    """
+    req = urllib.request.Request(url, method=req_method)
+    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
+    req.add_header('X-Master-Key', JSONBIN_API_KEY)
+    req.add_header('Content-Type', 'application/json')
+    req.add_header('X-Bin-Meta', 'false')
+    if req_method == 'PUT':
+        req.add_header('X-Bin-Versioning', 'true')
+
+    json_data = json.dumps(data, ensure_ascii=False).encode('utf-8') if data is not None else None
+
+    try:
+        with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
+            return json.loads(response.read().decode('utf-8'))
+    except urllib.error.HTTPError as he:
+        body = he.read().decode('utf-8')
+        print(f"[JSONBin] Errore HTTP {he.code}: {he.reason}\nDettagli risposta: {body}")
+        raise he
+    except urllib.error.URLError as ue:
+        # Controlliamo se l'errore è dovuto alla verifica del certificato SSL
+        if hasattr(ue, 'reason') and 'CERTIFICATE_VERIFY_FAILED' in str(ue.reason):
+            print("[JSONBin] Rilevato errore SSL (CERTIFICATE_VERIFY_FAILED). Tento fallback senza verifica SSL...")
+            try:
+                ctx = ssl._create_unverified_context()
+                with urllib.request.urlopen(req, data=json_data, timeout=10, context=ctx) as response:
+                    return json.loads(response.read().decode('utf-8'))
+            except Exception as ex:
+                print(f"[JSONBin] Fallback SSL fallito: {ex}")
+                raise ex
+        else:
+            print(f"[JSONBin] Errore di connessione: {ue}")
+            raise ue
+    except Exception as e:
+        print(f"[JSONBin] Errore generico: {e}")
+        raise e
+
 def load_db():
     global CACHED_DB
     if CACHED_DB is not None:
@@ -167,16 +208,11 @@ def load_db():
     cloud_db = None
     if JSONBIN_API_KEY and JSONBIN_BIN_ID:
         url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
-        req.add_header('X-Master-Key', JSONBIN_API_KEY)
-        req.add_header('X-Bin-Meta', 'false')
         try:
-            with urllib.request.urlopen(req, timeout=10) as response:
-                cloud_db = json.loads(response.read().decode('utf-8'))
-                print("[JSONBin] Database caricato da JSONBin.io con successo.")
+            cloud_db = make_jsonbin_request(url, 'GET')
+            print("[JSONBin] Database caricato da JSONBin.io con successo.")
         except Exception as e:
-            print(f"[JSONBin] Errore caricamento da JSONBin: {e}. Uso fallback locale.")
+            print(f"[JSONBin] Errore caricamento da JSONBin. Uso fallback locale. Dettaglio: {e}")
             
     # 2. Carica da locale
     local_db = None
@@ -226,18 +262,9 @@ def save_db_local_only(data):
 
 def save_db_cloud_only(data):
     url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
-    req = urllib.request.Request(url, method='PUT')
-    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36')
-    req.add_header('X-Master-Key', JSONBIN_API_KEY)
-    req.add_header('Content-Type', 'application/json')
-    req.add_header('X-Bin-Meta', 'false')
-    # Abilitiamo il versionamento per poter recuperare lo storico delle modifiche in cloud
-    req.add_header('X-Bin-Versioning', 'true')
-    
-    json_data = json.dumps(data, ensure_ascii=False).encode('utf-8')
     try:
-        with urllib.request.urlopen(req, data=json_data, timeout=10) as response:
-            print("[JSONBin] Modifiche persistite su JSONBin.io (nuova versione creata).")
+        make_jsonbin_request(url, 'PUT', data)
+        print("[JSONBin] Modifiche persistite su JSONBin.io (nuova versione creata).")
     except Exception as e:
         print(f"[JSONBin] Errore salvataggio su JSONBin: {e}.")
 
@@ -294,6 +321,9 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
                 result.append(table_copy)
             self.send_json_response(200, result)
             
+        elif self.path == '/api/debug-db':
+            self.handle_api_debug_db()
+
         elif self.path == '/api/menu':
             menu_data = {
                 "categories": db['categories'],
@@ -326,6 +356,39 @@ class BarRequestHandler(SimpleHTTPRequestHandler):
                 self.send_json_response(404, {"error": "Ordine non trovato"})
         else:
             self.send_json_response(404, {"error": "Endpoint non trovato"})
+
+    def handle_api_debug_db(self):
+        info = {
+            "JSONBIN_API_KEY_present": JSONBIN_API_KEY is not None,
+            "JSONBIN_API_KEY_length": len(JSONBIN_API_KEY) if JSONBIN_API_KEY else 0,
+            "JSONBIN_BIN_ID_present": JSONBIN_BIN_ID is not None,
+            "JSONBIN_BIN_ID_length": len(JSONBIN_BIN_ID) if JSONBIN_BIN_ID else 0,
+            "test_connection": None
+        }
+        
+        if JSONBIN_API_KEY and JSONBIN_BIN_ID:
+            url = f"https://api.jsonbin.io/v3/b/{JSONBIN_BIN_ID}"
+            try:
+                res = make_jsonbin_request(url, 'GET')
+                info["test_connection"] = {
+                    "status": "success",
+                    "data_keys": list(res.keys()) if isinstance(res, dict) else type(res).__name__
+                }
+            except Exception as e:
+                import traceback
+                info["test_connection"] = {
+                    "status": "error",
+                    "error_class": type(e).__name__,
+                    "error_message": str(e),
+                    "traceback": traceback.format_exc()
+                }
+        else:
+            info["test_connection"] = {
+                "status": "skipped",
+                "reason": "Missing env variables (check JSONBIN_API_KEY and JSONBIN_BIN_ID)"
+            }
+            
+        self.send_json_response(200, info)
 
     def handle_api_post(self):
         db = load_db()
